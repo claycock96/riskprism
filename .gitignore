@@ -64,3 +64,4 @@ backend/data/
 # CI / Artifacts
 .agent/
 .gemini/
+.claude/
