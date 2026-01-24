@@ -9,6 +9,7 @@ interface RiskFindingsProps {
   findings: RiskFinding[]
   diffSkeleton?: ResourceChange[]
   aiRisksNarrative?: string
+  isIAM?: boolean
 }
 
 function getSeverityBadge(severity: string) {
@@ -33,7 +34,7 @@ function getSeverityIcon(severity: string) {
   return icons[severity as keyof typeof icons] || icons.info
 }
 
-export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarrative }: RiskFindingsProps) {
+export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarrative, isIAM = false }: RiskFindingsProps) {
   if (findings.length === 0) {
     return null
   }

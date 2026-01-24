@@ -1,10 +1,13 @@
 # Terraform Plan Analyzer
 
-A security-focused web application that analyzes Terraform plans for risks, generates plain-English explanations using AI, and produces review-ready PR comments.
+A security-focused web application that analyzes Terraform plans and IAM policies for risks, generates plain-English explanations using AI, and produces review-ready PR comments.
 
 ## Features
 
-- **Deterministic Risk Engine**: 14+ production-ready security rules covering IAM, networking, encryption, and more
+- **🛡️ Dual Analysis Modes**:
+  - **Terraform Plan**: Analyzing infrastructure changes (`terraform show -json tfplan`)
+  - **IAM Policy**: Analyzing AWS IAM policies for privilege escalation risks
+- **Deterministic Risk Engine**: 24+ production-ready security rules covering IAM, networking, encryption, and more
 - **High-Concurrency Engine**: Non-blocking Async AI and SQLite WAL mode support 20+ simultaneous users ⚡
 - **Analysis Caching**: SHA-256 Plan Fingerprinting allows skipping redundant AI calls—saves 90%+ in latency and API costs 💸
 - **Safe-by-Design**: Safe feature extraction and hashing—sensitive values and resource names never leave your env

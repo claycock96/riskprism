@@ -10,9 +10,10 @@ interface AIExplanationProps {
   explanation: BedrockExplanation
   diffSkeleton?: ResourceChange[]
   riskFindings?: RiskFinding[]
+  isIAM?: boolean
 }
 
-export default function AIExplanation({ explanation, diffSkeleton = [], riskFindings = [] }: AIExplanationProps) {
+export default function AIExplanation({ explanation, diffSkeleton = [], riskFindings = [], isIAM = false }: AIExplanationProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>('summary')
 
   // Expand all sections when printing
@@ -111,26 +112,22 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
             <h4 className="text-sm font-semibold text-gray-900 mb-2">Data Sanitization Process</h4>
             <div className="text-xs text-gray-600 space-y-2">
               <div>
-                <strong className="text-gray-700">1. Resource Hashing</strong>
-                <p className="ml-3 mt-1">Resource addresses like <code className="bg-gray-100 px-1 rounded">aws_db_instance.prod-database</code> are converted to hashes like <code className="bg-gray-100 px-1 rounded">res_abc123def4</code> before being sent to the AI.</p>
+                <strong className="text-gray-700">1. {isIAM ? 'Identity Hashing' : 'Resource Hashing'}</strong>
+                <p className="ml-3 mt-1">
+                  {isIAM
+                    ? <span>Account IDs like <code className="bg-gray-100 px-1 rounded">123456789012</code> and ARNs are converted to secure hashes like <code className="bg-gray-100 px-1 rounded">acct_abc123</code>.</span>
+                    : <span>Resource addresses like <code className="bg-gray-100 px-1 rounded">aws_db_instance.prod-database</code> are converted to hashes.</span>
+                  }
+                </p>
               </div>
               <div>
                 <strong className="text-gray-700">2. Metadata Only</strong>
-                <p className="ml-3 mt-1">The AI receives only resource types, actions (create/update/delete), and changed attribute paths—never the actual values.</p>
+                <p className="ml-3 mt-1">The AI receives only {isIAM ? 'actions and resource patterns' : 'resource types and attribute paths'}—never raw {isIAM ? 'policy values' : 'configuration values'}.</p>
               </div>
               <div>
-                <strong className="text-gray-700">3. Sensitive Keys Blocked</strong>
-                <p className="ml-3 mt-1">Attributes like passwords, tokens, API keys, and secrets are completely filtered out during parsing.</p>
+                <strong className="text-gray-700">3. Frontend Enhancement</strong>
+                <p className="ml-3 mt-1">This interface automatically replaces hashes with your original names for readability, but the AI never sees them.</p>
               </div>
-              <div>
-                <strong className="text-gray-700">4. Frontend Enhancement</strong>
-                <p className="ml-3 mt-1">This interface automatically replaces hashes with your original resource names for readability, but the AI never sees them.</p>
-              </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <p className="text-xs text-gray-500">
-                <strong>Result:</strong> The AI can provide security insights without access to potentially sensitive infrastructure naming conventions or configuration values.
-              </p>
             </div>
           </div>
         </details>
@@ -165,12 +162,12 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
         </div>
       )}
 
-      {/* What's Changing */}
+      {/* What's Changing / Policy Overview */}
       {enhancedChanges && (
         <div className="mb-2">
           <SectionHeader
             id="changes"
-            title="What's Changing"
+            title={isIAM ? "Policy Overview" : "What's Changing"}
             icon={
               <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />

@@ -144,19 +144,74 @@ class LLMClient:
     def _build_prompt(self, sanitized_payload: Dict[str, Any]) -> str:
         """
         Build prompt for LLM with sanitized data.
-
-        The prompt instructs the model to:
-        - Not invent resource names or IDs
-        - Use only provided sanitized facts
-        - Generate structured output
+        
+        Detects analyzer type and uses appropriate prompt template.
         """
+        # Detect analyzer type
+        analyzer_type = sanitized_payload.get('analyzer_type', 'terraform')
+        
         # Convert to JSON for structured input
         payload_json = json.dumps(sanitized_payload, indent=2, default=str)
-
-        # Log the sanitized payload size for debugging
         logger.debug(f"Sanitized payload size: {len(payload_json)} characters")
+        
+        if analyzer_type == 'iam':
+            return self._build_iam_prompt(payload_json)
+        else:
+            return self._build_terraform_prompt(payload_json)
+    
+    def _build_iam_prompt(self, payload_json: str) -> str:
+        """Build IAM-specific analysis prompt."""
+        return f"""You are an AWS IAM security specialist. Your task is to analyze an IAM policy and generate a clear, actionable security review.
 
-        prompt = f"""You are an AWS infrastructure and Terraform security reviewer. Your task is to analyze a Terraform plan and generate a clear, actionable review.
+IMPORTANT CONSTRAINTS:
+- Do NOT invent ARNs, account IDs, or specific identifiers
+- Use ONLY the sanitized facts provided in the payload
+- ARNs and account IDs are HASHED for privacy (e.g., arn_abc123, acct_xyz789)
+- Focus on the risk findings and their security implications
+- This is NOT a Terraform plan - do not reference Terraform or infrastructure changes
+
+INPUT DATA (Sanitized IAM Policy):
+{payload_json}
+
+Generate a structured review with the following sections:
+
+1. EXECUTIVE SUMMARY (2-5 bullets)
+   - High-level assessment of the policy's security posture
+   - Call out critical privilege escalation risks immediately
+
+2. POLICY OVERVIEW
+   - Describe what this policy allows/denies
+   - Highlight any broad permissions (wildcards)
+   - Note if conditions are used appropriately
+
+3. TOP RISKS (REASONING ONLY)
+   - **CRITICAL**: Do NOT identify any new risks. Only explain the `risk_findings` provided above.
+   - **NO COUNTS**: Never mention the total number of risks.
+   - **MANDATORY FORMATTING**:
+     - Use a Level 3 header `###` for each risk title.
+     - Use bold keys for details:
+       - **Risk**: A brief description.
+       - **Why This Matters**: The security implication.
+       - **Attack Scenario**: A realistic exploit example.
+     - Ensure there is a blank line between each risk item.
+
+4. REVIEW QUESTIONS
+   - What the reviewer should double-check
+   - Least privilege recommendations
+   - Questions about intended scope of access
+
+Format your response as JSON with this structure:
+{{
+  "executive_summary": ["bullet 1", "bullet 2", ...],
+  "plain_english_changes": "... policy description ...",
+  "top_risks_explained": "... explanation of critical risks ...",
+  "review_questions": ["question 1", "question 2", ...]
+}}
+"""
+
+    def _build_terraform_prompt(self, payload_json: str) -> str:
+        """Build Terraform-specific analysis prompt."""
+        return f"""You are an AWS infrastructure and Terraform security reviewer. Your task is to analyze a Terraform plan and generate a clear, actionable review.
 
 IMPORTANT CONSTRAINTS:
 - Do NOT invent resource names, IDs, or specific identifiers
@@ -202,7 +257,6 @@ Format your response as JSON with this structure:
   "review_questions": ["question 1", "question 2", ...]
 }}
 """
-        return prompt
 
     async def _call_anthropic(self, prompt: str) -> str:
         """
@@ -398,21 +452,42 @@ Format your response as JSON with this structure:
             severity = finding.get("severity", "info")
             severity_counts[severity] += 1
 
-        # Build PR comment
-        comment_parts = [
-            "## 🔍 Terraform Plan Analysis",
-            "",
-            "### Summary",
-            f"- **Total Changes**: {summary['total_changes']}",
-            f"- Creates: {summary['creates']}, Updates: {summary['updates']}, Deletes: {summary['deletes']}, Replaces: {summary['replaces']}",
-            "",
-            "### Security Findings",
-            f"- 🔴 **Critical**: {severity_counts['critical']}",
-            f"- 🟠 **High**: {severity_counts['high']}",
-            f"- 🟡 **Medium**: {severity_counts['medium']}",
-            f"- 🔵 **Low**: {severity_counts['low']}",
-            "",
-        ]
+        # Build PR comment - handle both Terraform and IAM summary formats
+        analyzer_type = summary.get('analyzer_type', sanitized_payload.get('analyzer_type', 'terraform'))
+        
+        if analyzer_type == 'iam':
+            # IAM Policy summary format
+            comment_parts = [
+                "## 🔐 IAM Policy Analysis",
+                "",
+                "### Summary",
+                f"- **Total Statements**: {summary.get('total_statements', 0)}",
+                f"- Allow: {summary.get('allow_statements', 0)}, Deny: {summary.get('deny_statements', 0)}",
+                f"- Wildcard Actions: {summary.get('wildcard_actions', 0)}, Wildcard Resources: {summary.get('wildcard_resources', 0)}",
+                "",
+                "### Security Findings",
+                f"- 🔴 **Critical**: {severity_counts['critical']}",
+                f"- 🟠 **High**: {severity_counts['high']}",
+                f"- 🟡 **Medium**: {severity_counts['medium']}",
+                f"- 🔵 **Low**: {severity_counts['low']}",
+                "",
+            ]
+        else:
+            # Terraform Plan summary format
+            comment_parts = [
+                "## 🔍 Terraform Plan Analysis",
+                "",
+                "### Summary",
+                f"- **Total Changes**: {summary.get('total_changes', 0)}",
+                f"- Creates: {summary.get('creates', 0)}, Updates: {summary.get('updates', 0)}, Deletes: {summary.get('deletes', 0)}, Replaces: {summary.get('replaces', 0)}",
+                "",
+                "### Security Findings",
+                f"- 🔴 **Critical**: {severity_counts['critical']}",
+                f"- 🟠 **High**: {severity_counts['high']}",
+                f"- 🟡 **Medium**: {severity_counts['medium']}",
+                f"- 🔵 **Low**: {severity_counts['low']}",
+                "",
+            ]
 
         if explanation.executive_summary:
             comment_parts.extend([

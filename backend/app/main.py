@@ -12,6 +12,7 @@ from app.llm_client import LLMClient
 from app.models import AnalyzeRequest, AnalyzeResponse
 from app.session_store import session_store
 from app.database import init_db
+from app.analyzers import TerraformAnalyzer, AnalyzerType
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -64,9 +65,9 @@ async def lifespan(app: FastAPI):
     pass
 
 app = FastAPI(
-    title="Terraform Plan Analyzer",
-    description="Analyzes Terraform plans for security risks and generates explanations",
-    version="0.1.0",
+    title="Security Analysis Platform",
+    description="Multi-analyzer security platform: Terraform Plans, IAM Policies, and more",
+    version="0.2.0",
     lifespan=lifespan
 )
 
@@ -141,10 +142,15 @@ async def health():
 
 
 @app.post("/analyze", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
+@app.post("/analyze/terraform", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
 @limiter.limit("10/minute")
-async def analyze_plan(request: Request, analyze_request: AnalyzeRequest):
+async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeRequest):
     """
     Analyze a Terraform plan JSON for security risks and generate explanation.
+    
+    Endpoints:
+    - POST /analyze (backward compatible)
+    - POST /analyze/terraform (preferred)
     """
     try:
         # Security: payload size check (approx 10MB limit)
@@ -241,6 +247,79 @@ async def analyze_plan(request: Request, analyze_request: AnalyzeRequest):
     except Exception as e:
         logger.error(f"Analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+# ============================================================================
+# IAM Policy Analysis Endpoint
+# ============================================================================
+
+from app.models import IAMAnalyzeRequest, IAMAnalyzeResponse, IAMSummary
+from app.analyzers import IAMPolicyAnalyzer
+
+# Initialize IAM analyzer
+iam_analyzer = IAMPolicyAnalyzer()
+
+
+@app.post("/analyze/iam", response_model=IAMAnalyzeResponse, dependencies=[Depends(verify_internal_code)])
+@limiter.limit("10/minute")
+async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeRequest):
+    """
+    Analyze an IAM Policy JSON for security risks.
+    
+    Supports:
+    - Standard IAM policy documents: {"Version": "...", "Statement": [...]}
+    - Wrapped formats: {"policy": {...}} or {"Policy": {...}}
+    """
+    try:
+        # Security: payload size check
+        content_length = request.headers.get('content-length')
+        if content_length and int(content_length) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Payload too large. Maximum size is 10MB.")
+
+        logger.info(f"Received IAM policy analysis request from {request.client.host}")
+
+        # Step 1: Parse IAM policy
+        logger.info("Parsing IAM policy")
+        parsed_policy = iam_analyzer.parse(analyze_request.policy)
+
+        # Step 2: Run IAM security rules
+        logger.info("Running IAM risk analysis")
+        max_findings = analyze_request.options.max_findings if analyze_request.options else 50
+        risk_findings = iam_analyzer.analyze(parsed_policy, max_findings=max_findings)
+
+        # Step 3: Generate summary
+        summary_dict = iam_analyzer.generate_summary(parsed_policy)
+        summary = IAMSummary(**summary_dict)
+
+        # Step 4: Create sanitized payload for LLM
+        logger.info("Creating sanitized payload for LLM")
+        sanitized_payload = iam_analyzer.sanitize_for_llm(parsed_policy, risk_findings)
+
+        # Step 5: Call LLM
+        logger.info(f"Calling LLM ({llm_client.provider}) for IAM explanation")
+        llm_response = await llm_client.generate_explanation(sanitized_payload)
+
+        # Step 6: Build response
+        response = IAMAnalyzeResponse(
+            summary=summary,
+            risk_findings=risk_findings,
+            explanation=llm_response["explanation"],
+            pr_comment=llm_response["pr_comment"],
+            cached=False,
+            resource_hash_map=iam_analyzer.get_resource_hash_map()
+        )
+
+        logger.info(f"IAM analysis complete. Found {len(risk_findings)} risks.")
+        return response
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"IAM validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid IAM policy format: {str(e)}")
+    except Exception as e:
+        logger.error(f"IAM analysis failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"IAM analysis failed: {str(e)}")
 
 
 @app.get("/results/{session_id}", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])

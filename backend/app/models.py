@@ -95,6 +95,38 @@ class AnalyzeResponse(BaseModel):
     plan_hash: Optional[str] = Field(None, description="Fingerprint of the analyzed plan")
 
 
+# ============================================================================
+# IAM Policy Analysis Models
+# ============================================================================
+
+class IAMAnalyzeRequest(BaseModel):
+    """Request model for /analyze/iam endpoint"""
+    policy: Dict[str, Any] = Field(..., description="IAM policy JSON document")
+    options: Optional[AnalyzeOptions] = Field(default=None, description="Optional analysis configuration")
+
+
+class IAMSummary(BaseModel):
+    """High-level summary of IAM policy analysis"""
+    total_statements: int = Field(..., description="Total number of statements")
+    allow_statements: int = Field(default=0, description="Number of Allow statements")
+    deny_statements: int = Field(default=0, description="Number of Deny statements")
+    wildcard_actions: int = Field(default=0, description="Statements with Action: *")
+    wildcard_resources: int = Field(default=0, description="Statements with Resource: *")
+    policy_version: str = Field(default="2012-10-17", description="Policy version")
+
+
+class IAMAnalyzeResponse(BaseModel):
+    """Response model for /analyze/iam endpoint"""
+    summary: IAMSummary = Field(..., description="High-level policy summary")
+    risk_findings: List[RiskFinding] = Field(..., description="Deterministic risk findings")
+    explanation: BedrockExplanation = Field(..., description="Plain-English explanation from LLM")
+    pr_comment: str = Field(..., description="Copy-paste ready PR comment text")
+    session_id: Optional[str] = Field(None, description="Session ID for sharing")
+    cached: bool = Field(default=False, description="Whether from cache")
+    policy_hash: Optional[str] = Field(None, description="Fingerprint of the analyzed policy")
+    resource_hash_map: Dict[str, str] = Field(default_factory=dict, description="Hash to original ARN mapping")
+
+
 class Base(DeclarativeBase):
     pass
 

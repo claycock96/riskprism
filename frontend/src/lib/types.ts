@@ -4,7 +4,8 @@ export interface PlanSummary {
   updates: number
   deletes: number
   replaces: number
-  no_ops: number
+  no_ops?: number
+  terraform_version?: string
 }
 
 export interface AttributeDiff {
@@ -47,6 +48,7 @@ export interface AnalyzeResponse {
   pr_comment: string
   session_id?: string
   cached?: boolean
+  analyzer_type?: 'terraform' | 'iam'
 }
 
 export interface SessionStats {

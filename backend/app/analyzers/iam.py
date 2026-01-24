@@ -1,0 +1,370 @@
+"""
+IAM Policy Analyzer
+
+Implements the BaseAnalyzer interface for AWS IAM Policy analysis.
+Provides privacy-preserving analysis with ARN/Account ID hashing.
+"""
+
+import hashlib
+import json
+import re
+from typing import Dict, Any, List, Optional, Set
+import logging
+
+from .base import BaseAnalyzer, AnalyzerType
+from app.models import RiskFinding, Severity
+
+logger = logging.getLogger(__name__)
+
+
+class IAMPolicyAnalyzer(BaseAnalyzer):
+    """
+    IAM Policy Analyzer.
+    
+    Analyzes AWS IAM policies for security risks using:
+    - Deterministic rule engine (10+ rules)
+    - ARN/Account ID hashing for privacy
+    - Statement normalization for consistent analysis
+    """
+    
+    analyzer_type = AnalyzerType.IAM
+    
+    # Patterns for sensitive data extraction and hashing
+    ARN_PATTERN = re.compile(r'arn:aws[a-z-]*:[a-z0-9-]+:[a-z0-9-]*:(\d{12})?:[a-zA-Z0-9/_-]+')
+    ACCOUNT_ID_PATTERN = re.compile(r'\b\d{12}\b')
+    
+    # High-risk actions that require scrutiny
+    HIGH_RISK_ACTIONS = {
+        'iam:PassRole', 'iam:CreateUser', 'iam:CreateRole', 'iam:AttachRolePolicy',
+        'iam:AttachUserPolicy', 'iam:PutRolePolicy', 'iam:PutUserPolicy',
+        'sts:AssumeRole', 'sts:AssumeRoleWithSAML', 'sts:AssumeRoleWithWebIdentity',
+        'kms:Decrypt', 'kms:Encrypt', 'kms:GenerateDataKey',
+        'secretsmanager:GetSecretValue', 'ssm:GetParameter', 'ssm:GetParameters',
+        's3:GetObject', 's3:PutObject', 's3:DeleteObject',
+        'lambda:InvokeFunction', 'lambda:UpdateFunctionCode',
+        'ec2:RunInstances', 'ec2:TerminateInstances',
+    }
+    
+    def __init__(self):
+        self._arn_hash_map: Dict[str, str] = {}  # hash -> original
+        self._statements: List[Dict[str, Any]] = []
+        self._policy_document: Dict[str, Any] = {}
+    
+    def parse(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Parse and validate IAM policy JSON.
+        
+        Accepts:
+        - Standard IAM policy document: {"Version": "...", "Statement": [...]}
+        - Wrapped format: {"policy": {...}} or {"policy_document": {...}}
+        """
+        # Extract policy document from various wrapper formats
+        policy = input_data
+        if 'policy' in input_data:
+            policy = input_data['policy']
+        elif 'policy_document' in input_data:
+            policy = input_data['policy_document']
+        elif 'Policy' in input_data:
+            policy = input_data['Policy']
+        
+        # Handle string-encoded policies
+        if isinstance(policy, str):
+            try:
+                policy = json.loads(policy)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in policy: {e}")
+        
+        # Validate structure
+        if not isinstance(policy, dict):
+            raise ValueError("Policy must be a dictionary")
+        
+        if 'Statement' not in policy:
+            raise ValueError("Policy must contain 'Statement' field")
+        
+        statements = policy.get('Statement', [])
+        if not isinstance(statements, list):
+            statements = [statements]
+        
+        # Normalize statements
+        self._statements = [self._normalize_statement(stmt) for stmt in statements]
+        self._policy_document = {
+            'Version': policy.get('Version', '2012-10-17'),
+            'Statement': self._statements
+        }
+        
+        logger.info(f"Parsed IAM policy with {len(self._statements)} statements")
+        return self._policy_document
+    
+    def _normalize_statement(self, stmt: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize a single statement to consistent format."""
+        normalized = {
+            'Sid': stmt.get('Sid', ''),
+            'Effect': stmt.get('Effect', 'Allow'),
+            'Action': self._ensure_list(stmt.get('Action', [])),
+            'NotAction': self._ensure_list(stmt.get('NotAction', [])),
+            'Resource': self._ensure_list(stmt.get('Resource', ['*'])),
+            'NotResource': self._ensure_list(stmt.get('NotResource', [])),
+            'Principal': stmt.get('Principal', '*'),
+            'Condition': stmt.get('Condition', {}),
+        }
+        return normalized
+    
+    def _ensure_list(self, value: Any) -> List[str]:
+        """Convert single value or list to list."""
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        return list(value)
+    
+    def _hash_arn(self, arn: str) -> str:
+        """Hash an ARN and store mapping."""
+        hash_val = hashlib.sha256(arn.encode('utf-8')).hexdigest()[:12]
+        hashed = f"arn_{hash_val}"
+        self._arn_hash_map[hashed] = arn
+        return hashed
+    
+    def _hash_sensitive_values(self, text: str) -> str:
+        """Replace ARNs and account IDs with hashed versions."""
+        # Hash ARNs
+        for arn in self.ARN_PATTERN.findall(text):
+            if arn:  # ARN found
+                full_match = self.ARN_PATTERN.search(text)
+                if full_match:
+                    original_arn = full_match.group(0)
+                    hashed = self._hash_arn(original_arn)
+                    text = text.replace(original_arn, hashed, 1)
+        
+        # Hash account IDs
+        for account_id in self.ACCOUNT_ID_PATTERN.findall(text):
+            hash_val = hashlib.sha256(account_id.encode('utf-8')).hexdigest()[:8]
+            hashed = f"acct_{hash_val}"
+            self._arn_hash_map[hashed] = account_id
+            text = text.replace(account_id, hashed)
+        
+        return text
+    
+    def analyze(
+        self, 
+        parsed_data: Dict[str, Any],
+        max_findings: int = 50
+    ) -> List[RiskFinding]:
+        """Run IAM security rules."""
+        findings: List[RiskFinding] = []
+        
+        for idx, stmt in enumerate(self._statements):
+            stmt_findings = self._analyze_statement(stmt, idx)
+            findings.extend(stmt_findings)
+            
+            if len(findings) >= max_findings:
+                break
+        
+        # Sort by severity
+        severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}
+        findings.sort(key=lambda f: severity_order.get(f.severity.value, 5))
+        
+        logger.info(f"IAM analysis found {len(findings)} security issues")
+        return findings[:max_findings]
+    
+    def _analyze_statement(self, stmt: Dict[str, Any], stmt_idx: int) -> List[RiskFinding]:
+        """Analyze a single statement for security issues."""
+        findings: List[RiskFinding] = []
+        
+        effect = stmt.get('Effect', 'Allow')
+        actions = stmt.get('Action', [])
+        resources = stmt.get('Resource', [])
+        conditions = stmt.get('Condition', {})
+        principal = stmt.get('Principal', '*')
+        
+        # Only analyze Allow statements for most rules
+        if effect != 'Allow':
+            return findings
+        
+        # Rule 1: Admin wildcard (Action: *, Resource: *)
+        if '*' in actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-ADMIN-STAR',
+                severity=Severity.CRITICAL,
+                title='Full Administrator Access',
+                description='Statement grants Action: "*" with Resource: "*" - effectively granting full AWS administrator access.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'actions': actions, 'resources': resources},
+                recommendation='Replace wildcard with specific actions and resources following least privilege.',
+                suggested_fix='{"Effect": "Allow", "Action": ["s3:GetObject"], "Resource": ["arn:aws:s3:::bucket-name/*"]}'
+            ))
+        
+        # Rule 2: PassRole wildcard
+        passrole_actions = [a for a in actions if a.lower() in ['iam:passrole', 'iam:*', '*']]
+        if passrole_actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-PASSROLE-BROAD',
+                severity=Severity.CRITICAL,
+                title='Broad iam:PassRole Permission',
+                description='PassRole on wildcard resources allows passing any role to any service - potential privilege escalation.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'passrole_actions': passrole_actions, 'resources': resources},
+                recommendation='Restrict PassRole to specific role ARNs.',
+                suggested_fix='{"Resource": ["arn:aws:iam::ACCOUNT:role/specific-role"]}'
+            ))
+        
+        # Rule 3: AssumeRole wildcard
+        assume_actions = [a for a in actions if 'assumerole' in a.lower() or a in ['sts:*', '*']]
+        if assume_actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-ASSUMEROLE-BROAD',
+                severity=Severity.HIGH,
+                title='Broad sts:AssumeRole Permission',
+                description='AssumeRole on wildcard allows assuming any role in any account.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'assume_actions': assume_actions, 'resources': resources},
+                recommendation='Restrict AssumeRole to specific role ARNs.',
+            ))
+        
+        # Rule 4: S3 with public/wildcard principal
+        s3_actions = [a for a in actions if a.startswith('s3:') or a in ['s3:*', '*']]
+        if s3_actions and principal == '*':
+            findings.append(RiskFinding(
+                risk_id='IAM-S3-PUBLIC-ACCESS',
+                severity=Severity.HIGH,
+                title='S3 Actions with Public Principal',
+                description='S3 actions allowed for Principal: "*" - potentially public access.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'s3_actions': s3_actions, 'principal': principal},
+                recommendation='Restrict Principal to specific AWS accounts or identities.',
+            ))
+        
+        # Rule 5: KMS decrypt broad
+        kms_actions = [a for a in actions if a.lower() in ['kms:decrypt', 'kms:*', '*']]
+        if kms_actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-KMS-DECRYPT-BROAD',
+                severity=Severity.HIGH,
+                title='Broad KMS Decrypt Permission',
+                description='kms:Decrypt on wildcard resources allows decrypting any KMS-encrypted data.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'kms_actions': kms_actions, 'resources': resources},
+                recommendation='Restrict to specific KMS key ARNs.',
+            ))
+        
+        # Rule 6: Secrets Manager broad
+        secrets_actions = [a for a in actions if 'secretsmanager' in a.lower() or a in ['secretsmanager:*', '*']]
+        if secrets_actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-SECRETS-BROAD',
+                severity=Severity.HIGH,
+                title='Broad Secrets Manager Access',
+                description='Secrets Manager access on wildcard resources allows reading any secret.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'secrets_actions': secrets_actions, 'resources': resources},
+                recommendation='Restrict to specific secret ARNs.',
+            ))
+        
+        # Rule 7: Lambda invoke broad
+        lambda_actions = [a for a in actions if a.lower() in ['lambda:invokefunction', 'lambda:*', '*']]
+        if lambda_actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-LAMBDA-INVOKE-BROAD',
+                severity=Severity.MEDIUM,
+                title='Broad Lambda Invoke Permission',
+                description='lambda:InvokeFunction on wildcard allows invoking any Lambda function.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'lambda_actions': lambda_actions, 'resources': resources},
+                recommendation='Restrict to specific function ARNs.',
+            ))
+        
+        # Rule 8: EC2 describe all (info)
+        ec2_describe = [a for a in actions if a.lower().startswith('ec2:describe')]
+        if len(ec2_describe) > 5:
+            findings.append(RiskFinding(
+                risk_id='IAM-EC2-DESCRIBE-ALL',
+                severity=Severity.LOW,
+                title='Broad EC2 Describe Permissions',
+                description=f'Multiple EC2 Describe actions ({len(ec2_describe)}) may expose infrastructure details.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'ec2_describe_count': len(ec2_describe)},
+                recommendation='Review if all Describe actions are necessary.',
+            ))
+        
+        # Rule 9: NotAction usage
+        not_actions = stmt.get('NotAction', [])
+        if not_actions:
+            findings.append(RiskFinding(
+                risk_id='IAM-NOTACTION-USAGE',
+                severity=Severity.MEDIUM,
+                title='NotAction Pattern Detected',
+                description='NotAction grants all actions EXCEPT listed ones - can be overly permissive.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'not_actions': not_actions},
+                recommendation='Consider using explicit Action list instead.',
+            ))
+        
+        # Rule 10: Missing conditions on sensitive actions
+        sensitive_actions = [a for a in actions if a in self.HIGH_RISK_ACTIONS or a == '*']
+        if sensitive_actions and not conditions:
+            findings.append(RiskFinding(
+                risk_id='IAM-CONDITION-MISSING',
+                severity=Severity.MEDIUM,
+                title='Sensitive Actions Without Conditions',
+                description='High-risk actions lack Condition constraints (MFA, source IP, etc.).',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'sensitive_actions': sensitive_actions[:5]},
+                recommendation='Add Condition constraints like aws:MultiFactorAuthPresent or aws:SourceIp.',
+            ))
+        
+        return findings
+    
+    def sanitize_for_llm(
+        self, 
+        parsed_data: Dict[str, Any],
+        findings: List[RiskFinding]
+    ) -> Dict[str, Any]:
+        """Create sanitized payload for LLM."""
+        # Hash sensitive values in statements
+        sanitized_statements = []
+        for stmt in self._statements:
+            sanitized_stmt = {
+                'Effect': stmt['Effect'],
+                'Action': stmt['Action'],
+                'NotAction': stmt['NotAction'],
+                'Resource': [self._hash_sensitive_values(r) for r in stmt['Resource']],
+                'NotResource': [self._hash_sensitive_values(r) for r in stmt['NotResource']],
+                'HasConditions': bool(stmt.get('Condition')),
+            }
+            sanitized_statements.append(sanitized_stmt)
+        
+        return {
+            "analyzer_type": self.analyzer_type.value,
+            "summary": self.generate_summary(parsed_data),
+            "statements": sanitized_statements,
+            "risk_findings": [f.model_dump() for f in findings],
+        }
+    
+    def generate_summary(self, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate IAM policy summary."""
+        allow_count = sum(1 for s in self._statements if s.get('Effect') == 'Allow')
+        deny_count = sum(1 for s in self._statements if s.get('Effect') == 'Deny')
+        wildcard_actions = sum(1 for s in self._statements if '*' in s.get('Action', []))
+        wildcard_resources = sum(1 for s in self._statements if '*' in s.get('Resource', []))
+        
+        return {
+            'total_statements': len(self._statements),
+            'allow_statements': allow_count,
+            'deny_statements': deny_count,
+            'wildcard_actions': wildcard_actions,
+            'wildcard_resources': wildcard_resources,
+            'policy_version': parsed_data.get('Version', '2012-10-17'),
+        }
+    
+    def get_resource_hash_map(self) -> Dict[str, str]:
+        """Get hash -> original ARN mapping."""
+        return self._arn_hash_map

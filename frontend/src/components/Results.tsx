@@ -16,6 +16,11 @@ interface ResultsProps {
 export default function Results({ results, onReset }: ResultsProps) {
   const [copied, setCopied] = useState(false)
 
+  // Detect analyzer type from results
+  const isIAM = results.analyzer_type === 'iam' ||
+    results.summary.terraform_version?.startsWith('IAM Policy') ||
+    results.diff_skeleton.length === 0
+
   const handleSavePDF = () => {
     window.print()
   }
@@ -34,7 +39,9 @@ export default function Results({ results, onReset }: ResultsProps) {
     <div className="space-y-6">
       {/* Header with Reset Button */}
       <div className="flex items-center justify-between print:hidden">
-        <h2 className="text-2xl font-bold text-gray-900">Analysis Results</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {isIAM ? '🔐 IAM Policy Analysis' : '🔍 Terraform Plan Analysis'}
+        </h2>
         <div className="flex gap-3">
           <button
             onClick={handleSavePDF}
@@ -47,7 +54,7 @@ export default function Results({ results, onReset }: ResultsProps) {
           </button>
           <button
             onClick={handleShare}
-            className={`px-4 py-2 text-sm font-medium rounded-md border transition-all flex items-center ${copied ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+            className={`px-4 py-2 text-sm font-medium rounded-md border transition-all flex items-center ${copied ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600'}`}
           >
             <svg className={`w-4 h-4 mr-2 ${copied ? 'text-green-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {copied ? (
@@ -60,16 +67,18 @@ export default function Results({ results, onReset }: ResultsProps) {
           </button>
           <button
             onClick={onReset}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600"
           >
-            Analyze Another Plan
+            {isIAM ? 'Analyze Another Policy' : 'Analyze Another Plan'}
           </button>
         </div>
       </div>
 
       {/* Print-only header */}
       <div className="hidden print:block mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Terraform Plan Security Analysis</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {isIAM ? 'IAM Policy Security Analysis' : 'Terraform Plan Security Analysis'}
+        </h1>
         <p className="text-sm text-gray-600">Generated: {new Date().toLocaleString()}</p>
       </div>
 
@@ -78,26 +87,31 @@ export default function Results({ results, onReset }: ResultsProps) {
         explanation={results.explanation}
         diffSkeleton={results.diff_skeleton}
         riskFindings={results.risk_findings}
+        isIAM={isIAM}
       />
 
-      {/* Summary Section */}
+      {/* Summary Section - Hide "What's Changing" for IAM */}
       <Summary
         summary={results.summary}
         riskFindings={results.risk_findings}
         diffSkeleton={results.diff_skeleton}
         cached={results.cached}
+        isIAM={isIAM}
       />
 
-      {/* Resource Changes Section */}
-      <ResourceChanges
-        diffSkeleton={results.diff_skeleton}
-      />
+      {/* Resource Changes Section - Only show for Terraform */}
+      {!isIAM && results.diff_skeleton.length > 0 && (
+        <ResourceChanges
+          diffSkeleton={results.diff_skeleton}
+        />
+      )}
 
-      {/* Risk Findings Section - Merged with AI reasoning */}
+      {/* Risk Findings Section */}
       <RiskFindings
         findings={results.risk_findings}
         diffSkeleton={results.diff_skeleton}
         aiRisksNarrative={results.explanation.top_risks_explained}
+        isIAM={isIAM}
       />
 
       {/* PR Comment Section */}
