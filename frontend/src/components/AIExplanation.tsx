@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { BedrockExplanation, ResourceChange, RiskFinding } from '@/lib/types'
@@ -14,6 +14,28 @@ interface AIExplanationProps {
 
 export default function AIExplanation({ explanation, diffSkeleton = [], riskFindings = [] }: AIExplanationProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>('summary')
+
+  // Expand all sections when printing
+  useEffect(() => {
+    const handleBeforePrint = () => {
+      // Store current state
+      const currentSection = expandedSection
+      // Expand all by setting to null (we'll modify the render logic)
+      setExpandedSection('print-all')
+    }
+
+    const handleAfterPrint = () => {
+      setExpandedSection('summary')
+    }
+
+    window.addEventListener('beforeprint', handleBeforePrint)
+    window.addEventListener('afterprint', handleAfterPrint)
+
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint)
+      window.removeEventListener('afterprint', handleAfterPrint)
+    }
+  }, [expandedSection])
 
   // Create resource mapping for hash-to-name translation
   const resourceMapping = createResourceMapping(diffSkeleton, riskFindings)
@@ -126,7 +148,7 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
               </svg>
             }
           />
-          {expandedSection === 'summary' && (
+          {(expandedSection === 'summary' || expandedSection === 'print-all') && (
             <div className="px-4 pb-4 pt-2">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <ul className="space-y-3">
@@ -155,7 +177,7 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
               </svg>
             }
           />
-          {expandedSection === 'changes' && (
+          {(expandedSection === 'changes' || expandedSection === 'print-all') && (
             <div className="px-4 pb-4 pt-2">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:font-semibold prose-p:text-gray-700 prose-strong:text-gray-900 prose-ul:text-gray-700 prose-li:text-gray-700">
@@ -182,7 +204,7 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
             }
             badge="Critical"
           />
-          {expandedSection === 'risks' && (
+          {(expandedSection === 'risks' || expandedSection === 'print-all') && (
             <div className="px-4 pb-4 pt-2">
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="prose prose-sm max-w-none prose-headings:text-red-900 prose-headings:font-semibold prose-h2:text-base prose-h2:uppercase prose-h2:tracking-wide prose-h2:mb-4 prose-h2:pb-2 prose-h2:border-b prose-h2:border-red-200 prose-h3:text-sm prose-h3:mt-4 prose-h3:mb-2 prose-p:text-gray-800 prose-strong:text-gray-900 prose-ul:text-gray-800 prose-li:text-gray-800 prose-li:my-1">
@@ -209,7 +231,7 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
             }
             badge={`${explanation.review_questions.length} items`}
           />
-          {expandedSection === 'checklist' && (
+          {(expandedSection === 'checklist' || expandedSection === 'print-all') && (
             <div className="px-4 pb-4 pt-2">
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                 <ul className="space-y-3">
