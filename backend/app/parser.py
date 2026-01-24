@@ -3,7 +3,7 @@ import json
 from typing import Dict, Any, List, Set, Optional
 import logging
 
-from app.models import PlanSummary, ResourceChange
+from app.models import PlanSummary, ResourceChange, AttributeDiff
 
 logger = logging.getLogger(__name__)
 
@@ -129,10 +129,11 @@ class TerraformPlanParser:
                 else:
                     action = 'unknown'
 
-                # Extract changed paths
+                # Extract changed paths and diffs
                 before = change_data.get('before', {})
                 after = change_data.get('after', {})
-                changed_paths = self._extract_changed_paths(before, after)
+                attribute_diffs = self._extract_attribute_diffs(before, after)
+                changed_paths = [d.path for d in attribute_diffs]
 
                 # Generate stable hash for resource reference
                 resource_id_hash = self._hash_resource_ref(address)
@@ -141,6 +142,7 @@ class TerraformPlanParser:
                     resource_type=resource_type,
                     action=action,
                     changed_paths=changed_paths,
+                    attribute_diffs=attribute_diffs,
                     resource_id_hash=resource_id_hash,
                     resource_address=address
                 ))
@@ -152,16 +154,14 @@ class TerraformPlanParser:
         logger.info(f"Extracted {len(skeleton)} resource changes")
         return skeleton
 
-    def _extract_changed_paths(
+    def _extract_attribute_diffs(
         self,
         before: Optional[Dict[str, Any]],
         after: Optional[Dict[str, Any]],
         prefix: str = ""
-    ) -> List[str]:
+    ) -> List[AttributeDiff]:
         """
-        Recursively extract paths of changed attributes.
-
-        Returns only attribute key paths, not values.
+        Recursively extract changed attributes including before/after values.
 
         Args:
             before: Before state
@@ -169,9 +169,9 @@ class TerraformPlanParser:
             prefix: Path prefix for recursion
 
         Returns:
-            List of changed attribute paths (e.g., ['ingress', 'egress.cidr_blocks'])
+            List of AttributeDiff objects
         """
-        changed_paths: Set[str] = set()
+        diffs: List[AttributeDiff] = []
 
         # Handle None cases
         if before is None:
@@ -196,16 +196,20 @@ class TerraformPlanParser:
             if before_val != after_val:
                 # For nested dicts, recurse
                 if isinstance(before_val, dict) and isinstance(after_val, dict):
-                    nested_paths = self._extract_changed_paths(before_val, after_val, full_path)
-                    changed_paths.update(nested_paths)
-                # For lists, just record the container key
-                elif isinstance(before_val, list) or isinstance(after_val, list):
-                    changed_paths.add(full_path)
+                    nested_diffs = self._extract_attribute_diffs(before_val, after_val, full_path)
+                    diffs.extend(nested_diffs)
                 else:
-                    # Primitive value changed
-                    changed_paths.add(full_path)
+                    # Primitive value or list changed
+                    # For lists, we currently record the whole container if it changed
+                    diffs.append(AttributeDiff(
+                        path=full_path,
+                        before=before_val,
+                        after=after_val
+                    ))
 
-        return sorted(list(changed_paths))
+        # Sort by path for consistent results
+        diffs.sort(key=lambda x: x.path)
+        return diffs
 
     def _hash_resource_ref(self, address: str) -> str:
         """

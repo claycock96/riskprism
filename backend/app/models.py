@@ -48,11 +48,19 @@ class RiskFinding(BaseModel):
     changed_paths: Optional[List[str]] = Field(None, description="Attribute paths that changed")
 
 
+class AttributeDiff(BaseModel):
+    """Represents a change in a single attribute"""
+    path: str = Field(..., description="Attribute path (e.g., ingress.0.cidr_blocks)")
+    before: Any = Field(None, description="Value before change")
+    after: Any = Field(None, description="Value after change")
+
+
 class ResourceChange(BaseModel):
     """Minimal representation of a resource change (diff skeleton)"""
     resource_type: str = Field(..., description="e.g., aws_security_group")
     action: str = Field(..., description="create/update/delete/replace")
     changed_paths: List[str] = Field(default_factory=list, description="Attribute paths that changed")
+    attribute_diffs: List[AttributeDiff] = Field(default_factory=list, description="Detailed attribute changes")
     resource_id_hash: str = Field(..., description="Stable hash of resource address")
     resource_address: Optional[str] = Field(None, description="Original resource address (for frontend display only, not sent to LLM)")
 
@@ -113,7 +121,11 @@ class AnalysisSession(Base):
         """Convert ORM model back to Pydantic AnalyzeResponse"""
         return AnalyzeResponse(
             summary=PlanSummary(**json.loads(self.summary_json)),
-            diff_skeleton=[ResourceChange(**c) for c in json.loads(self.diff_skeleton_json)],
+            diff_skeleton=[
+                ResourceChange(
+                    **{**c, "attribute_diffs": [AttributeDiff(**d) for d in c.get("attribute_diffs", [])]}
+                ) for c in json.loads(self.diff_skeleton_json)
+            ],
             risk_findings=[RiskFinding(**f) for f in json.loads(self.risk_findings_json)],
             explanation=BedrockExplanation(**json.loads(self.explanation_json)),
             pr_comment=self.pr_comment,

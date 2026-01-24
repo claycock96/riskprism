@@ -7,11 +7,18 @@ export interface PlanSummary {
   no_ops: number
 }
 
+export interface AttributeDiff {
+  path: string
+  before: any
+  after: any
+}
+
 export interface ResourceChange {
   action: string
   resource_type: string
   resource_id_hash: string
   changed_paths: string[]
+  attribute_diffs: AttributeDiff[]
   resource_address?: string
 }
 

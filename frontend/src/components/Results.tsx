@@ -5,6 +5,7 @@ import Summary from './Summary'
 import RiskFindings from './RiskFindings'
 import AIExplanation from './AIExplanation'
 import PRComment from './PRComment'
+import ResourceChanges from './ResourceChanges'
 
 interface ResultsProps {
   results: AnalyzeResponse
@@ -58,6 +59,11 @@ export default function Results({ results, onReset }: ResultsProps) {
         explanation={results.explanation}
         diffSkeleton={results.diff_skeleton}
         riskFindings={results.risk_findings}
+      />
+
+      {/* Resource Changes Section */}
+      <ResourceChanges
+        diffSkeleton={results.diff_skeleton}
       />
 
       {/* Risk Findings Section */}
