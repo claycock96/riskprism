@@ -233,6 +233,8 @@ async def analyze_plan(request: Request, analyze_request: AnalyzeRequest):
         logger.info(f"Analysis complete. Found {len(risk_findings)} risks. Session ID: {session_id}")
         return response
 
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Invalid plan format: {str(e)}")
