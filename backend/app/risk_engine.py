@@ -415,7 +415,7 @@ class RiskEngine:
                     "admin_risk": True
                 },
                 recommendation="Scope IAM actions and resources to least privilege. Avoid Action: '*' and Resource: '*'. Use separate break-glass admin roles with MFA and monitoring.",
-                suggested_fix="statement {\n  actions = [\"s3:ListBucket\", \"s3:GetObject\"]\n  resources = [\"arn:aws:s3:::my-bucket\", \"arn:aws:s3:::my-bucket/*\"]\n}",
+                suggested_fix="statement {\n  actions   = [\"ec2:Describe*\", \"s3:ListBucket\"]\n  resources = [\"*\"]\n  # Prefer specific resource ARNs where possible\n}",
                 changed_paths=None
             )
 

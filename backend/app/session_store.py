@@ -101,6 +101,39 @@ class SessionStore:
                 logger.error(f"Failed to get session {session_id}: {e}")
                 return None
 
+    async def get_by_plan_hash(self, plan_hash: str) -> Optional[AnalyzeResponse]:
+        """
+        Retrieve the latest analysis result for a given plan hash.
+        Returns None if not found or expired.
+        """
+        async with async_session() as session:
+            try:
+                # Find most recent analysis with this hash
+                result = await session.execute(
+                    select(AnalysisSession)
+                    .where(AnalysisSession.plan_hash == plan_hash)
+                    .order_by(AnalysisSession.created_at.desc())
+                    .limit(1)
+                )
+                record = result.scalar_one_or_none()
+                
+                if not record:
+                    return None
+
+                # Check if expired
+                age = datetime.utcnow() - record.created_at
+                if age > self.ttl:
+                    return None
+
+                # Update access time
+                record.accessed_at = datetime.utcnow()
+                await session.commit()
+                
+                return record.to_analyze_response()
+            except Exception as e:
+                logger.error(f"Failed to get session by hash {plan_hash}: {e}")
+                return None
+
     async def get_all(self, limit: int = 20) -> List[AnalyzeResponse]:
         """
         Retrieve latest analysis results.

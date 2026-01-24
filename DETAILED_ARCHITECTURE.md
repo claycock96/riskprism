@@ -8,26 +8,22 @@ The application follows a "Safe-by-Design" architecture that separates data extr
 
 ```mermaid
 graph TD
-    subgraph Browser
-        A["Upload Plan JSON"] --> B["Receive Analysis"]
-        B --> C["Map Hashes to Names"]
-        C --> D["Display Secure UI"]
-    end
-
     subgraph Backend
         E["Parse & Validate"] --> F["Deterministic Risk Engine"]
         F --> G["Data Sanitization & Hashing"]
-        G --> H["Sanitized Payload Only"]
+        G --> H["Plan Fingerprinting (SHA-256)"]
+        H -- "Cache Hit" --> I["Retrieve Cached Result"]
+        H -- "Cache Miss" --> J["LLM Reasoning"]
+        I --> K["Persistence (SQLite)"]
+        J --> K
     end
 
-    subgraph AI
-        H --> I["AI Reasoning"]
-        I --> J["Plain-English Narrative"]
+    subgraph Browser
+        A["Upload Plan JSON"] --> B["Map Hashes to Names"]
+        B --> C["Display Secure UI"]
     end
-
-    J --> B
-    F --> G
-    E --> G
+    
+    K --> B
 ```
 
 ---
@@ -48,11 +44,20 @@ The `parser.py` performs two critical tasks:
 2.  **Resource Hashing**: It replaces identifiable resource addresses with 10-character SHA-256 hashes.
     - `aws_db_instance.prod_db` → `res_9f31a02c1b`
 
-### Layer 3: AI Interpretation (LLM)
+### Layer 3: Intelligence Cache & Persistence (New)
+The backend leverages an asynchronous **SQLite** layer and SHA-256 fingerprinting:
+- **Fingerprinting**: Every unique plan generates a signature based on its semantic changes.
+- **Cost Skip**: If a fingerprint match is found, the backend skips the LLM call entirely and serves the cached reasoning in milliseconds.
+- **Audit Trails**: Even on a cache hit, a new Session ID is generated to maintain a traceable paper trail of who requested the analysis.
+
+### Layer 4: AI Interpretation (LLM)
 The LLM (Claude 3.5 Sonnet) receives only the **Sanitized Payload**. It uses its reasoning capabilities to turn raw security findings into a cohesive narrative and PR comment.
 
-### Layer 4: Frontend Re-Mapping
+### Layer 5: Frontend Re-Mapping
 The frontend maintains a local mapping of `Hash -> Original Name`. When the AI refers to `res_9f31a02c1b`, the UI displays `aws_db_instance (prod_db)`. This ensures readability for you without exposing names to the AI.
+
+### Security layer: Team Access (New)
+A pre-request validation layer ensures that only clients with the correct `X-Internal-Code` can interact with the API or view stored results.
 
 ---
 

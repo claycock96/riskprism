@@ -244,3 +244,33 @@ class TerraformPlanParser:
             if change.get('address') == address:
                 return change
         return None
+
+    def calculate_plan_hash(self, diff_skeleton: List[ResourceChange]) -> str:
+        """
+        Calculate a stable SHA-256 fingerprint for the plan.
+        
+        This uses the sanitized diff skeleton (types, actions, and changed paths).
+        By sorting the skeleton by resource hash, we ensure identical plans
+        produce identical fingerprints regardless of internal JSON ordering.
+        
+        Args:
+            diff_skeleton: Minimal representation of plan changes
+            
+        Returns:
+            SHA-256 hash string
+        """
+        # Sort by resource_id_hash to ensure deterministic fingerprint
+        sorted_skeleton = sorted(diff_skeleton, key=lambda x: x.resource_id_hash)
+        
+        # Serialize only the data that matters for the security vibe
+        hashable_data = [
+            {
+                "type": c.resource_type,
+                "action": c.action,
+                "paths": sorted(c.changed_paths)
+            }
+            for c in sorted_skeleton
+        ]
+        
+        skeleton_json = json.dumps(hashable_data, sort_keys=True)
+        return hashlib.sha256(skeleton_json.encode('utf-8')).hexdigest()

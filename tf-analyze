@@ -89,14 +89,36 @@ fi
 
 # Send to API
 echo "Analyzing with security rules..."
+
+# Build headers array
+HEADERS=("-H" "Content-Type: application/json")
+if [ ! -z "$INTERNAL_ACCESS_CODE" ]; then
+    HEADERS+=("-H" "X-Internal-Code: $INTERNAL_ACCESS_CODE")
+fi
+
 # Wrap the plan JSON in the expected request format
 REQUEST_BODY=$(jq -n --argjson plan "$PLAN_JSON" '{plan_json: $plan}')
-RESPONSE=$(curl -s -X POST "$API_URL/analyze" \
-    -H "Content-Type: application/json" \
+
+# Use a temporary file for the response body
+RESPONSE_FILE=$(mktemp)
+HTTP_CODE=$(curl -s -o "$RESPONSE_FILE" -w "%{http_code}" -X POST "$API_URL/analyze" \
+    "${HEADERS[@]}" \
     -d "$REQUEST_BODY")
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Error: Failed to connect to API at $API_URL${NC}"
+RESPONSE=$(cat "$RESPONSE_FILE")
+rm -f "$RESPONSE_FILE"
+
+# Check for successful response
+if [ "$HTTP_CODE" -ne 200 ]; then
+    echo -e "${RED}Error: API returned status $HTTP_CODE${NC}"
+    if [ "$HTTP_CODE" -eq 401 ]; then
+        echo -e "${YELLOW}Authentication failed. Please set your team access code:${NC}"
+        echo "  export INTERNAL_ACCESS_CODE=your-secret-code"
+    elif [ "$HTTP_CODE" -eq 000 ]; then
+        echo -e "${RED}Failed to connect to API at $API_URL. Is the server running?${NC}"
+    else
+        echo -e "Detail: $(echo "$RESPONSE" | jq -r '.detail // "No details provided"')"
+    fi
     exit 1
 fi
 
@@ -108,6 +130,7 @@ if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
 fi
 
 # Parse response
+CACHED=$(echo "$RESPONSE" | jq -r '.cached')
 TOTAL_CHANGES=$(echo "$RESPONSE" | jq -r '.summary.total_changes')
 CREATES=$(echo "$RESPONSE" | jq -r '.summary.creates')
 UPDATES=$(echo "$RESPONSE" | jq -r '.summary.updates')
@@ -121,9 +144,14 @@ MEDIUM=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="medium")]
 LOW=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="low")] | length')
 
 # Display summary
+CACHED_STR=""
+if [ "$CACHED" = "true" ]; then
+    CACHED_STR=" ${YELLOW}⚡ (Cached Analysis)${NC}"
+fi
+
 echo ""
 echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}                  ANALYSIS SUMMARY${NC}"
+echo -e "${BOLD}                  ANALYSIS SUMMARY$CACHED_STR${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
 echo ""
 

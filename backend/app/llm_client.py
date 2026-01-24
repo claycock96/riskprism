@@ -177,10 +177,16 @@ Generate a structured review with the following sections:
    - Use generic descriptions (e.g., "2 security groups being created")
    - Mention changed attribute categories without specific values
 
-3. TOP RISKS
-   - Explain each CRITICAL and HIGH severity finding
-   - Relate findings to security best practices
-   - Be specific about the implications
+3. TOP RISKS (REASONING ONLY)
+   - **CRITICAL**: Do NOT identify any new risks. Only explain the `risk_findings` provided above.
+   - **NO COUNTS**: Never mention the total number of risks (e.g., dont say "Found 5 risks"). The UI handles all data counting.
+   - **MANDATORY FORMATTING**:
+     - Use a Level 3 header `###` for each risk title.
+     - Use bold keys for details:
+       - **Risk**: A brief description.
+       - **Why This Matters**: The security implication.
+       - **Attack Scenario**: A realistic exploit example.
+     - Ensure there is a blank line between each risk item.
 
 4. REVIEW QUESTIONS
    - What the reviewer should double-check

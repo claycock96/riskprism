@@ -46,6 +46,7 @@ export interface AnalyzeResponse {
   explanation: BedrockExplanation
   pr_comment: string
   session_id?: string
+  cached?: boolean
 }
 
 export interface SessionStats {

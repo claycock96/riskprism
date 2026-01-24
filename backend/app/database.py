@@ -33,7 +33,7 @@ async def init_db():
             # Import models to register them with Base
             from .models import AnalysisSession
             await conn.run_sync(Base.metadata.create_all)
-            logger.info("Database tables initialized")
+            logger.info("Database tables initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         # In a real app we might want to fail hard, but for MVP we might allow fallback

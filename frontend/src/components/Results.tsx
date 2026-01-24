@@ -47,18 +47,19 @@ export default function Results({ results, onReset }: ResultsProps) {
         <p className="text-sm text-gray-600">Generated: {new Date().toLocaleString()}</p>
       </div>
 
+      {/* AI Explanation Section - Top level summary */}
+      <AIExplanation
+        explanation={results.explanation}
+        diffSkeleton={results.diff_skeleton}
+        riskFindings={results.risk_findings}
+      />
+
       {/* Summary Section */}
       <Summary
         summary={results.summary}
         riskFindings={results.risk_findings}
         diffSkeleton={results.diff_skeleton}
-      />
-
-      {/* AI Explanation Section */}
-      <AIExplanation
-        explanation={results.explanation}
-        diffSkeleton={results.diff_skeleton}
-        riskFindings={results.risk_findings}
+        cached={results.cached}
       />
 
       {/* Resource Changes Section */}
@@ -66,10 +67,11 @@ export default function Results({ results, onReset }: ResultsProps) {
         diffSkeleton={results.diff_skeleton}
       />
 
-      {/* Risk Findings Section */}
+      {/* Risk Findings Section - Merged with AI reasoning */}
       <RiskFindings
         findings={results.risk_findings}
         diffSkeleton={results.diff_skeleton}
+        aiRisksNarrative={results.explanation.top_risks_explained}
       />
 
       {/* PR Comment Section */}

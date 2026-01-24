@@ -151,7 +151,30 @@ async def analyze_plan(request: Request, analyze_request: AnalyzeRequest):
         # Step 4: Generate summary stats
         summary = plan_parser.generate_summary(parsed_plan)
 
-        # Step 5: Create sanitized payload for LLM
+        # Step 5: Check Cache (Plan Fingerprinting)
+        plan_hash = plan_parser.calculate_plan_hash(diff_skeleton)
+        cached_analysis = await session_store.get_by_plan_hash(plan_hash)
+        
+        if cached_analysis:
+            logger.info(f"CACHE HIT: Serving cached analysis for plan hash {plan_hash}")
+            # Ensure session ID is updated for this new 'request' even if data is cached
+            user_ip = request.client.host if request.client else "unknown"
+            user_agent = request.headers.get("user-agent", "unknown")
+            
+            # Save a new session record (shared analysis, new trace)
+            try:
+                session_id = await session_store.save(
+                    cached_analysis,
+                    user_ip=user_ip,
+                    user_agent=user_agent
+                )
+                cached_analysis.session_id = session_id
+            except Exception as e:
+                logger.warning(f"Failed to save cached analysis trace: {e}")
+                
+            return cached_analysis
+
+        # Step 6: Create sanitized payload for LLM
         logger.info("Creating sanitized payload for LLM")
         sanitized_payload = {
             "summary": summary.model_dump(),
@@ -159,20 +182,22 @@ async def analyze_plan(request: Request, analyze_request: AnalyzeRequest):
             "risk_findings": [finding.model_dump() for finding in risk_findings],
         }
 
-        # Step 6: Call LLM
+        # Step 7: Call LLM
         logger.info(f"Calling LLM ({llm_client.provider}) for explanation")
         llm_response = await llm_client.generate_explanation(sanitized_payload)
 
-        # Step 7: Build response
+        # Step 8: Build response
         response = AnalyzeResponse(
             summary=summary,
             diff_skeleton=diff_skeleton,
             risk_findings=risk_findings,
             explanation=llm_response["explanation"],
-            pr_comment=llm_response["pr_comment"]
+            pr_comment=llm_response["pr_comment"],
+            plan_hash=plan_hash,
+            cached=False
         )
 
-        # Step 8: Save to database with audit metadata
+        # Step 9: Save to database with audit metadata
         user_ip = request.client.host if request.client else "unknown"
         user_agent = request.headers.get("user-agent", "unknown")
         

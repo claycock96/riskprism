@@ -7,9 +7,10 @@ interface SummaryProps {
   summary: PlanSummary
   riskFindings: RiskFinding[]
   diffSkeleton?: ResourceChange[]
+  cached?: boolean
 }
 
-export default function Summary({ summary, riskFindings, diffSkeleton = [] }: SummaryProps) {
+export default function Summary({ summary, riskFindings, diffSkeleton = [], cached = false }: SummaryProps) {
   const [hoveredStat, setHoveredStat] = useState<string | null>(null)
 
   // Count findings by severity
@@ -111,7 +112,14 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [] }: Su
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">Plan Summary</h3>
+        <div className="flex items-center">
+          <h3 className="text-lg font-semibold text-gray-900 mr-3">Plan Summary</h3>
+          {cached && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">
+              <span className="mr-1">⚡</span> CACHED
+            </span>
+          )}
+        </div>
         {hasHighRisks && (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
             <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">

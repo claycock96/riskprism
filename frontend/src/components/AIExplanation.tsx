@@ -191,33 +191,6 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
         </div>
       )}
 
-      {/* Top Security Risks */}
-      {enhancedRisks && (
-        <div className="mb-2">
-          <SectionHeader
-            id="risks"
-            title="Top Security Risks"
-            icon={
-              <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            }
-            badge="Critical"
-          />
-          {(expandedSection === 'risks' || expandedSection === 'print-all') && (
-            <div className="px-4 pb-4 pt-2">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="prose prose-sm max-w-none prose-headings:text-red-900 prose-headings:font-semibold prose-h2:text-base prose-h2:uppercase prose-h2:tracking-wide prose-h2:mb-4 prose-h2:pb-2 prose-h2:border-b prose-h2:border-red-200 prose-h3:text-sm prose-h3:mt-4 prose-h3:mb-2 prose-p:text-gray-800 prose-strong:text-gray-900 prose-ul:text-gray-800 prose-li:text-gray-800 prose-li:my-1">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {enhancedRisks}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Review Checklist */}
       {explanation.review_questions && explanation.review_questions.length > 0 && (
         <div className="mb-2">

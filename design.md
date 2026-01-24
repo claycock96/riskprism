@@ -27,47 +27,33 @@ We want a web app that:
 ### ✅ Completed
 
 **Backend (Python FastAPI)**
-- Terraform plan JSON parser with sanitization
-- 9 production-ready security rules in risk engine
-- AWS Bedrock integration (Claude 3.5 Sonnet)
-- Anthropic API direct integration
-- Mock mode fallback for development without credentials
+- Terraform plan JSON parser with recursive attribute extraction
+- **14 reproduction-ready security rules** in risk engine
+- **SQLAlchemy + SQLite persistence layer** for session storage
+- **Audit Logging (Paper Trail)**: Tracks IP and User-Agent per analysis
+- **Shared Access Code Authentication** via secure headers
+- AWS Bedrock (Claude 3.5 Sonnet) & Anthropic API integrations
 - Resource address hashing (SHA-256) for privacy
 - Sensitive key filtering during parsing
 
 **Frontend (Next.js 14 + TypeScript)**
-- File upload interface with drag-and-drop
-- Real-time analysis results display
+- **Entry Gate**: Secure team access code prompt
+- **History Browser**: Chronological list of past analyses
+- **Visual Diff Highlighting**: Side-by-side attribute changes (Old vs New)
+- Interactive hover tooltips and expandable evidence sections
 - Frontend-only resource mapping (hash → readable names)
-- Interactive hover tooltips on resource change statistics
-- Expandable evidence sections in risk findings
-- Inline security documentation ("How is data sanitized?")
-- Copy-to-clipboard PR comment output
-- Responsive design with Tailwind CSS
+- Responsive design with Tailwind CSS and premium aesthetics
 
 **Infrastructure & Deployment**
-- Docker Compose for local development
-- Multi-container orchestration (frontend + backend)
-- Terraform IaC for AWS EC2 deployment
-- Auto-generated SSH keys stored in Secrets Manager
-- IAM role with Bedrock permissions
+- Docker Compose with **persistent volume bind-mounts**
+- Terraform IaC for AWS EC2 (t4g.small/ARM) deployment
 - Private subnet deployment with VPC-only access
-- Interactive deployment script with plan review
-
-**Security & Privacy**
-- Resource hashing before LLM submission
-- Metadata-only extraction (no values sent to AI)
-- Sensitive attribute filtering (passwords, tokens, keys)
-- Frontend enhancement layer for readability
-- AI sees: `res_abc123def4`
-- User sees: `aws_security_group (web_server)`
+- Automated SSH key management in Secrets Manager
 
 ### 🚧 In Progress / Planned
-- Additional risk rules (11+ planned from design spec)
-- Historical analysis tracking
-- Multi-file plan support
-- CI/CD integration examples
-- Enhanced test coverage
+- CI/CD Integration (GitHub Action & GitLab CI)
+- Multi-cloud risk rule expansion (Azure/GCP)
+- Team-based SSO integration (Okta/Google)
 
 ---
 
@@ -138,10 +124,11 @@ Implementation:
 - Returns structured analysis response
 - Mock mode fallback for development
 
-**No Storage Layer (MVP)**
-- Raw plans never stored
-- Processing is stateless and in-memory only
-- Future: Optional analysis history in DynamoDB (sanitized only)
+**Persistent Storage Layer**
+- SQLite database (`sessions.db`) stores sanitized analysis results
+- Managed via SQLAlchemy with asynchronous operations
+- Survives container restarts and backend redeployments
+- Automatically rotates oldest reports after 1,000 sessions or 30 days
 
 ### Data Flow (Implemented)
 

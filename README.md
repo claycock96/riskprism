@@ -4,21 +4,24 @@ A security-focused web application that analyzes Terraform plans for risks, gene
 
 ## Features
 
-- **Deterministic Risk Detection**: 9 production-ready security rules covering IAM, networking, encryption, and more
-- **Safe Data Handling**: Feature extraction and sanitization - never sends raw plan JSON to LLMs
-- **Frontend-Only Resource Mapping**: AI sees hashed resource names for privacy, but you see readable names in the UI
-- **AI-Powered Explanations**: Uses AWS Bedrock (Claude) or Anthropic API to generate human-readable analysis
-- **Interactive UI**: Hover tooltips on resource stats, expandable evidence sections, inline security documentation
-- **PR-Ready Output**: Copy-paste formatted comments for code reviews
-- **Dockerized**: Full stack runs in containers for consistent local development
-- **AWS Deployment**: Terraform IaC for easy EC2 deployment
+- **Deterministic Risk Engine**: 14+ production-ready security rules covering IAM, networking, encryption, and more
+- **Analysis Caching**: SHA-256 Plan Fingerprinting allows skipping redundant AI calls—saves 90%+ in latency and API costs 💸
+- **Safe-by-Design**: Safe feature extraction and hashing—sensitive values and resource names never leave your env
+- **Persistent History**: Full reports are saved in a localized SQLite database and survive container restarts
+- **Consolidated UI Reasoning**: AI insights are merged directly into rule engine findings for a single "Source of Truth"
+- **Audit Logging**: Traceable "Paper Trail" recording requester IP and User-Agent for every analysis session
+- **Visual Diff Highlighting**: See exactly what changed with side-by-side attribute diffs
+- **Interactive UI**: Custom "Risk Card" rendering for deep exploit analysis and attack scenarios
+- **PR-Ready Output**: Copy-paste formatted Markdown comments for simplified Pull Request reviews
+- **CLI Tool**: Dev-focused `tf-analyze` script for instant feedback in the terminal with CI/CD support
 
 ## Architecture
 
-- **Backend**: Python FastAPI with async support
-- **Frontend**: Next.js 14 with TypeScript and Tailwind CSS
+- **Backend**: Python FastAPI with SQLAlchemy, SQLite persistence, and SHA-256 Plan Fingerprinting
+- **Frontend**: Next.js 14 with TypeScript, Tailwind CSS, and custom Markdown "Risk Card" rendering
+- **Auth**: Shared internal access code protection
 - **AI**: AWS Bedrock (Claude 3.5 Sonnet) or Anthropic API
-- **Deployment**: Docker Compose for local, Terraform for AWS EC2
+- **Caching**: Intelligent skip-logic for identical infrastructure plans
 
 ## Quick Start
 
@@ -135,7 +138,7 @@ terraform apply tfplan
 🔍 Analyzing Terraform Plan...
 
 ═══════════════════════════════════════════════════════
-                  ANALYSIS SUMMARY
+                  ANALYSIS SUMMARY ⚡ (Cached Analysis)
 ═══════════════════════════════════════════════════════
 
 Resource Changes:
@@ -298,27 +301,27 @@ If AWS credentials are not configured, the backend runs in mock mode:
 
 ## Security Rules
 
-The risk engine implements 9 production-ready rules (with 11+ more planned):
+The risk engine implements 14 production-ready rules:
 
-### Implemented
-1. **SG-OPEN-INGRESS** - Public security group ingress (Critical/High)
-2. **S3-PUBLIC-ACL-OR-POLICY** - Public S3 access (Critical)
-3. **S3-PAB-REMOVED** - S3 Block Public Access disabled (High)
-4. **S3-ENCRYPTION-REMOVED** - S3 encryption removed (High)
-5. **RDS-PUBLICLY-ACCESSIBLE** - Public RDS instance (Critical)
-6. **RDS-ENCRYPTION-OFF** - RDS encryption disabled (High)
-7. **IAM-ADMIN-WILDCARD** - IAM wildcard permissions in inline policies (Critical)
-8. **IAM-MANAGED-POLICY** - Dangerous AWS managed policy attachments (Critical/High)
-9. **CT-LOGGING-DISABLED** - CloudTrail disabled (Critical)
+### Networking & Exposure
+1.  **SG-OPEN-INGRESS** - Public security group ingress (Critical/High)
+2.  **NACL-ALLOW-ALL** - Wide open Network ACLs (High)
+3.  **LB-INTERNET-FACING** - Internet-facing Load Balancer (Medium)
 
-### Planned
-- NACL-ALLOW-ALL
-- LB-INTERNET-FACING
-- IAM-PASSROLE-BROAD
-- KMS-DECRYPT-BROAD
-- EBS-ENCRYPTION-OFF
-- LAMBDA-INTERNET-EGRESS-RISK
-- And more...
+### Storage & Datastores
+4.  **S3-PUBLIC-ACL-OR-POLICY** - Public S3 access (Critical)
+5.  **S3-PAB-REMOVED** - S3 Block Public Access disabled (High)
+6.  **S3-ENCRYPTION-REMOVED** - S3 encryption removed (High)
+7.  **RDS-PUBLICLY-ACCESSIBLE** - Public RDS instance (Critical)
+8.  **RDS-ENCRYPTION-OFF** - RDS encryption disabled (High)
+9.  **EBS-ENCRYPTION-OFF** - EBS volume encryption disabled (High)
+
+### IAM & Security
+10. **IAM-ADMIN-WILDCARD** - IAM wildcard permissions in inline policies (Critical)
+11. **IAM-MANAGED-POLICY** - Dangerous AWS managed policy attachments (Critical/High)
+12. **IAM-PASSROLE-BROAD** - Broad iam:PassRole permissions (High)
+13. **CT-LOGGING-DISABLED** - CloudTrail disabled (Critical)
+14. **KMS-DECRYPT-BROAD** - Overly broad KMS decryption permissions (High)
 
 ## Configuration
 

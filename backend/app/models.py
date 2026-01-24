@@ -91,6 +91,8 @@ class AnalyzeResponse(BaseModel):
     explanation: BedrockExplanation = Field(..., description="Plain-English explanation from Bedrock")
     pr_comment: str = Field(..., description="Copy-paste ready PR comment text")
     session_id: Optional[str] = Field(None, description="Session ID for sharing/viewing full results")
+    cached: bool = Field(default=False, description="Whether this result was served from cache")
+    plan_hash: Optional[str] = Field(None, description="Fingerprint of the analyzed plan")
 
 
 class Base(DeclarativeBase):
@@ -102,6 +104,7 @@ class AnalysisSession(Base):
     __tablename__ = "analysis_sessions"
 
     session_id = Column(String, primary_key=True)
+    plan_hash = Column(String, index=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     accessed_at = Column(DateTime, default=datetime.utcnow)
     
@@ -129,7 +132,9 @@ class AnalysisSession(Base):
             risk_findings=[RiskFinding(**f) for f in json.loads(self.risk_findings_json)],
             explanation=BedrockExplanation(**json.loads(self.explanation_json)),
             pr_comment=self.pr_comment,
-            session_id=self.session_id
+            session_id=self.session_id,
+            cached=True,
+            plan_hash=self.plan_hash
         )
 
     @classmethod
@@ -144,6 +149,7 @@ class AnalysisSession(Base):
             risk_findings_json=json.dumps([f.model_dump() for f in response.risk_findings]),
             explanation_json=response.explanation.model_dump_json(),
             pr_comment=response.pr_comment,
+            plan_hash=response.plan_hash,
             user_ip=user_ip,
             user_agent=user_agent,
             request_metadata_json=json.dumps(request_metadata) if request_metadata else None

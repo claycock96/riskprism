@@ -60,6 +60,15 @@ export TF_ANALYZE_API=http://10.0.1.50:8000
 tf-analyze tfplan $TF_ANALYZE_API
 ```
 
+### With Access Code Protection
+
+If the API is protected (standard for internal deployments), provide the access code via environment variable:
+
+```bash
+export INTERNAL_ACCESS_CODE=your-team-password
+tf-analyze tfplan
+```
+
 ## Output
 
 The tool provides a color-coded terminal summary:
@@ -101,8 +110,10 @@ AI Summary:
 ═══════════════════════════════════════════════════════
 ⚠️  CRITICAL ISSUES FOUND - Review required before apply
 
-📋 Full report: http://localhost:8000:3000
+📋 Full report: http://localhost:3000/results/res_abc123def4
 ```
+
+The report link now leads to a persistent results page featuring **Visual Diff Highlighting** (Old vs New values) and can be shared with your team.
 
 ## Exit Codes
 
