@@ -20,13 +20,19 @@ if [ -z "$1" ]; then
     echo "Usage: tf-analyze <plan-file> [api-url]"
     echo ""
     echo "Examples:"
-    echo "  tf-analyze tfplan                    # Use local API"
+    echo "  tf-analyze tfplan                    # Binary plan file"
+    echo "  tf-analyze plan.json                 # JSON plan file"
     echo "  tf-analyze tfplan http://10.0.1.5:8000  # Use remote API"
     echo ""
-    echo "Workflow:"
+    echo "Workflow (binary plan):"
     echo "  terraform plan -out=tfplan"
     echo "  tf-analyze tfplan"
     echo "  terraform apply tfplan"
+    echo ""
+    echo "Workflow (JSON plan):"
+    echo "  terraform plan -out=tfplan"
+    echo "  terraform show -json tfplan > plan.json"
+    echo "  tf-analyze plan.json"
     exit 1
 fi
 
@@ -64,21 +70,30 @@ fi
 
 echo -e "${BOLD}🔍 Analyzing Terraform Plan...${NC}\n"
 
-# Convert plan to JSON
-echo "Converting plan to JSON..."
-PLAN_JSON=$(terraform show -json "$PLAN_FILE" 2>&1)
+# Check if input is already JSON or a binary plan file
+if jq empty "$PLAN_FILE" 2>/dev/null; then
+    # Input is already valid JSON
+    echo "Reading plan JSON file..."
+    PLAN_JSON=$(cat "$PLAN_FILE")
+else
+    # Input is a binary plan file, convert to JSON
+    echo "Converting plan to JSON..."
+    PLAN_JSON=$(terraform show -json "$PLAN_FILE" 2>&1)
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Error converting plan to JSON:${NC}"
-    echo "$PLAN_JSON"
-    exit 1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error converting plan to JSON:${NC}"
+        echo "$PLAN_JSON"
+        exit 1
+    fi
 fi
 
 # Send to API
 echo "Analyzing with security rules..."
+# Wrap the plan JSON in the expected request format
+REQUEST_BODY=$(jq -n --argjson plan "$PLAN_JSON" '{plan_json: $plan}')
 RESPONSE=$(curl -s -X POST "$API_URL/analyze" \
     -H "Content-Type: application/json" \
-    -d "$PLAN_JSON")
+    -d "$REQUEST_BODY")
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Error: Failed to connect to API at $API_URL${NC}"
