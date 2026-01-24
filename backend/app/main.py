@@ -67,7 +67,6 @@ app = FastAPI(
     title="Terraform Plan Analyzer",
     description="Analyzes Terraform plans for security risks and generates explanations",
     version="0.1.0",
-    version="0.1.0",
     lifespan=lifespan
 )
 
