@@ -1,6 +1,10 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List, Literal
 from enum import Enum
+from datetime import datetime
+import json
+from sqlalchemy import Column, String, DateTime, Text
+from sqlalchemy.orm import DeclarativeBase
 
 
 class AnalysisMode(str, Enum):
@@ -79,3 +83,56 @@ class AnalyzeResponse(BaseModel):
     explanation: BedrockExplanation = Field(..., description="Plain-English explanation from Bedrock")
     pr_comment: str = Field(..., description="Copy-paste ready PR comment text")
     session_id: Optional[str] = Field(None, description="Session ID for sharing/viewing full results")
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class AnalysisSession(Base):
+    """SQLAlchemy model for persistent session storage"""
+    __tablename__ = "analysis_sessions"
+
+    session_id = Column(String, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    accessed_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Store complex objects as JSON strings
+    summary_json = Column(Text, nullable=False)
+    diff_skeleton_json = Column(Text, nullable=False)
+    risk_findings_json = Column(Text, nullable=False)
+    explanation_json = Column(Text, nullable=False)
+    pr_comment = Column(Text, nullable=False)
+    
+    # Audit Logging
+    user_ip = Column(String, nullable=True)
+    user_agent = Column(Text, nullable=True)
+    request_metadata_json = Column(Text, nullable=True)
+
+    def to_analyze_response(self) -> AnalyzeResponse:
+        """Convert ORM model back to Pydantic AnalyzeResponse"""
+        return AnalyzeResponse(
+            summary=PlanSummary(**json.loads(self.summary_json)),
+            diff_skeleton=[ResourceChange(**c) for c in json.loads(self.diff_skeleton_json)],
+            risk_findings=[RiskFinding(**f) for f in json.loads(self.risk_findings_json)],
+            explanation=BedrockExplanation(**json.loads(self.explanation_json)),
+            pr_comment=self.pr_comment,
+            session_id=self.session_id
+        )
+
+    @classmethod
+    def from_analyze_response(cls, response: AnalyzeResponse, session_id: str, 
+                              user_ip: str = None, user_agent: str = None, 
+                              request_metadata: Dict = None):
+        """Create ORM model from Pydantic AnalyzeResponse"""
+        return cls(
+            session_id=session_id,
+            summary_json=response.summary.model_dump_json(),
+            diff_skeleton_json=json.dumps([c.model_dump() for c in response.diff_skeleton]),
+            risk_findings_json=json.dumps([f.model_dump() for f in response.risk_findings]),
+            explanation_json=response.explanation.model_dump_json(),
+            pr_comment=response.pr_comment,
+            user_ip=user_ip,
+            user_agent=user_agent,
+            request_metadata_json=json.dumps(request_metadata) if request_metadata else None
+        )

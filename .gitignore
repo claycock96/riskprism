@@ -55,3 +55,12 @@ out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# Databases
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+backend/data/
+
+# CI / Artifacts
+.agent/
+.gemini/

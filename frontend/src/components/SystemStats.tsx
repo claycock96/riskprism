@@ -46,14 +46,14 @@ export default function SystemStats() {
                         System Online
                     </div>
                     <div>
-                        <span className="font-medium text-gray-700">{stats.total_sessions}</span> Active Sessions
+                        <span className="font-medium text-gray-700">{stats.total_sessions}</span> / {stats.max_size} Reports Stored
                     </div>
                     <div>
                         Uptime: <span className="font-medium text-gray-700">{formatUptime(stats.uptime_seconds)}</span>
                     </div>
                     <div className="text-gray-300">|</div>
                     <div className="text-xs italic text-gray-400">
-                        Sessions expire after {stats.ttl_hours}h
+                        Reports stored for {stats.ttl_hours / 24} days
                     </div>
                 </div>
                 <div className="text-xs font-medium text-gray-400 flex items-center tracking-wide">
