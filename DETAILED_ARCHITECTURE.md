@@ -2,47 +2,75 @@
 
 This document provides a deep dive into how the **Terraform Plan Analyzer** processes your data, detects security risks, and leverages AI—all while ensuring your sensitive infrastructure details never leave your environment.
 
-## The 4-Layer Pipeline
+## 1. System Overview
 
-The application follows a "Safe-by-Design" architecture that separates data extraction from AI interpretation.
+### Core Architecture
+The system follows a modular "Multi-Analyzer" pattern where a shared backend framework supports pluggable analysis engines (Terraform Plans, IAM Policies, etc.).
 
-```mermaid
-graph TD
-    subgraph Backend
-        E["Parse & Validate"] --> F["Deterministic Risk Engine"]
-        F --> G["Data Sanitization & Hashing"]
-        G --> H["Plan Fingerprinting (SHA-256)"]
-        H -- "Cache Hit" --> I["Retrieve Cached Result"]
-        H -- "Cache Miss" --> J["LLM Reasoning"]
-        I --> K["Persistence (SQLite)"]
-        J --> K
-    end
+**High-Level Components:**
+1.  **Frontend (Next.js)**: Context-aware UI that switches input forms and result visualizations based on the selected analyzer.
+2.  **Backend (FastAPI)**: REST API with a shared `BaseAnalyzer` abstraction.
+3.  **Analyzers**:
+    *   **TerraformAnalyzer**: Parses JSON plans, extracts resource diffs.
+    *   **IAMPolicyAnalyzer**: Parses policy documents, normalizes statements.
+4.  **Risk Engine**: Deterministic rule evaluation logic (specific to each analyzer).
+5.  **LLM Integration**: Provider-agnostic client (Bedrock/Anthropic) for generating "Why this matters" explanations.
 
-    subgraph Browser
-        A["Upload Plan JSON"] --> B["Map Hashes to Names"]
-        B --> C["Display Secure UI"]
-    end
-    
-    K --> B
-```
+### Privacy Model
+- **Hashing**: All identifiers (Resource Names, ARNs, Account IDs) are hashed locally or on the server before LLM processing.
+- **Sanitization**: Values are stripped. Only metadata (keys, actions) is preserved.
 
 ---
 
-## Layer-by-Layer Deep Dive
+## 2. Component Design
 
-### Layer 1: Deterministic Risk Engine
-Before the AI is involved, the backend executes a suite of Python-based security rules. These rules are **deterministic**—the same plan always produces the same findings.
+### 2.1 Backend Class Structure (Multi-Analyzer)
 
-- **Logic**: Iterates through resource changes using `risk_engine.py`.
-- **Extraction**: Instead of raw values, it identifies **Evidence Tokens**.
-    - *Raw*: `cidr_block: "0.0.0.0/0"`
-    - *Finding*: `{"public_cidr": true}`
+```mermaid
+classDiagram
+    class BaseAnalyzer {
+        +parse(input_data)
+        +analyze(parsed_data)
+        +sanitize_for_llm(parsed_data)
+        +generate_summary(parsed_data)
+    }
 
-### Layer 2: The Parser & Sanitizer
-The `parser.py` performs two critical tasks:
-1.  **Diff Skeleton**: It identifies *which* fields changed (keys) but ignores the *values*.
-2.  **Resource Hashing**: It replaces identifiable resource addresses with 10-character SHA-256 hashes.
-    - `aws_db_instance.prod_db` → `res_9f31a02c1b`
+    class TerraformAnalyzer {
+        +extract_diff_skeleton()
+        +risk_engine
+    }
+
+    class IAMPolicyAnalyzer {
+        +normalize_statements()
+        +hash_arns()
+    }
+
+    class LLMClient {
+        +generate_explanation(sanitized_payload)
+    }
+
+    BaseAnalyzer <|-- TerraformAnalyzer
+    BaseAnalyzer <|-- IAMPolicyAnalyzer
+    TerraformAnalyzer ..> LLMClient : sends context
+    IAMPolicyAnalyzer ..> LLMClient : sends context
+```
+
+### 2.2 Data Flow & Privacy
+
+#### Terraform Flow
+1.  **Upload**: User sends Terraform JSON.
+2.  **Parse**: `TerraformAnalyzer` extracts resource types, names, and changed attributes.
+3.  **Sanitize**: Values are stripped. Resource addresses are hashed (`aws_s3_bucket.main` -> `res_7f8a9b`).
+4.  **Analyze**: Rule engine scans for known risks (e.g., `SG-OPEN-INGRESS`).
+5.  **Explain**: LLM receives *only* hashed skeleton + risk identifiers.
+6.  **Resolve**: Frontend maps `res_7f8a9b` back to `aws_s3_bucket.main` for display.
+
+#### IAM Flow (New)
+1.  **Input**: User pastes Policy JSON.
+2.  **Parse**: `IAMPolicyAnalyzer` normalizes statements (Actions to lists).
+3.  **Sanitize**: ARNs and Account IDs are hashed (`123456789012` -> `acct_a1b2c3`).
+4.  **Analyze**: Rule engine checks permissions (e.g., `IAM-ADMIN-STAR`).
+5.  **Explain**: LLM explains risks using sanitized/hashed context.
 
 ### Layer 3: Intelligence Cache & Persistence (New)
 The backend leverages an asynchronous **SQLite** layer and SHA-256 fingerprinting:
