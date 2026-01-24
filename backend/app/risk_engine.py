@@ -31,6 +31,11 @@ class RiskEngine:
             self._rule_iam_admin_wildcard,
             self._rule_iam_managed_policy_attachment,
             self._rule_cloudtrail_disabled,
+            self._rule_iam_passrole_wildcard,
+            self._rule_sts_assumerole_wildcard,
+            self._rule_nacl_allow_all,
+            self._rule_lb_internet_facing,
+            self._rule_ebs_encryption_off,
         ]
 
     def analyze(
@@ -517,4 +522,165 @@ class RiskEngine:
                 changed_paths=None
             )
 
+        return None
+
+    def _rule_iam_passrole_wildcard(
+        self,
+        change: Dict[str, Any],
+        plan_json: Dict[str, Any]
+    ) -> Optional[RiskFinding]:
+        """
+        IAM-PASSROLE-BROAD: iam:PassRole allowed on wildcard resource
+        """
+        resource_type = change.get('type', '')
+        if resource_type not in ['aws_iam_policy', 'aws_iam_role_policy', 'aws_iam_user_policy']:
+            return None
+
+        after = change.get('change', {}).get('after', {})
+        if not after or not isinstance(after.get('policy'), str):
+            return None
+
+        policy = after.get('policy', '').replace(' ', '')
+        if '"Action":"iam:PassRole"' in policy or '"Action":["iam:PassRole"]' in policy:
+            if '"Resource":"*"' in policy or '"Resource":["*"]' in policy:
+                return RiskFinding(
+                    risk_id="IAM-PASSROLE-BROAD",
+                    title="IAM policy allows iam:PassRole on all resources",
+                    severity=Severity.CRITICAL,
+                    resource_type=resource_type,
+                    resource_ref=self._hash_resource_ref(change.get('address', '')),
+                    evidence={"action": "iam:PassRole", "resource_wildcard": True},
+                    recommendation="Restrict iam:PassRole to specific role ARNs. Wildcard PassRole allows an attacker to pass ANY role to a service, leading to full privilege escalation.",
+                    changed_paths=None
+                )
+        return None
+
+    def _rule_sts_assumerole_wildcard(
+        self,
+        change: Dict[str, Any],
+        plan_json: Dict[str, Any]
+    ) -> Optional[RiskFinding]:
+        """
+        STS-ASSUMEROLE-WILDCARD: sts:AssumeRole allowed on wildcard resource
+        """
+        resource_type = change.get('type', '')
+        if resource_type not in ['aws_iam_policy', 'aws_iam_role_policy', 'aws_iam_user_policy']:
+            return None
+
+        after = change.get('change', {}).get('after', {})
+        if not after or not isinstance(after.get('policy'), str):
+            return None
+
+        policy = after.get('policy', '').replace(' ', '')
+        if '"Action":"sts:AssumeRole"' in policy or '"Action":["sts:AssumeRole"]' in policy:
+            if '"Resource":"*"' in policy or '"Resource":["*"]' in policy:
+                return RiskFinding(
+                    risk_id="STS-ASSUMEROLE-WILDCARD",
+                    title="IAM policy allows sts:AssumeRole on all resources",
+                    severity=Severity.HIGH,
+                    resource_type=resource_type,
+                    resource_ref=self._hash_resource_ref(change.get('address', '')),
+                    evidence={"action": "sts:AssumeRole", "resource_wildcard": True},
+                    recommendation="Restrict sts:AssumeRole to specific role ARNs. Broad AssumeRole permissions increase the blast radius of compromised credentials.",
+                    changed_paths=None
+                )
+        return None
+
+    def _rule_nacl_allow_all(
+        self,
+        change: Dict[str, Any],
+        plan_json: Dict[str, Any]
+    ) -> Optional[RiskFinding]:
+        """
+        NACL-ALLOW-ALL: Network ACL allows all traffic from any source
+        """
+        resource_type = change.get('type', '')
+        if resource_type != 'aws_network_acl_rule':
+            return None
+
+        after = change.get('change', {}).get('after', {})
+        if not after:
+            return None
+
+        # rule_action="allow", protocol="-1" (all), cidr_block="0.0.0.0/0"
+        if (after.get('rule_action') == 'allow' and 
+            str(after.get('protocol')) == '-1' and 
+            (after.get('cidr_block') == '0.0.0.0/0' or after.get('ipv6_cidr_block') == '::/0')):
+            
+            return RiskFinding(
+                risk_id="NACL-ALLOW-ALL",
+                title="Network ACL allows all traffic from any source",
+                severity=Severity.HIGH,
+                resource_type=resource_type,
+                resource_ref=self._hash_resource_ref(change.get('address', '')),
+                evidence={
+                    "rule_action": "allow",
+                    "protocol": "all",
+                    "cidr_block": after.get('cidr_block') or after.get('ipv6_cidr_block')
+                },
+                recommendation="Restrict Network ACL rules to specific protocols and CIDR blocks. Prefer Security Groups for stateful traffic control.",
+                changed_paths=None
+            )
+        return None
+
+    def _rule_lb_internet_facing(
+        self,
+        change: Dict[str, Any],
+        plan_json: Dict[str, Any]
+    ) -> Optional[RiskFinding]:
+        """
+        LB-INTERNET-FACING: Load balancer is internet-facing
+        """
+        resource_type = change.get('type', '')
+        if resource_type not in ['aws_lb', 'aws_alb', 'aws_elb']:
+            return None
+
+        after = change.get('change', {}).get('after', {})
+        if not after:
+            return None
+
+        # aws_lb/aws_alb uses 'internal', aws_elb uses 'internal'
+        is_internal = after.get('internal')
+        
+        # If internal is false (or explicitly set to false), it's internet-facing
+        if is_internal is False:
+            return RiskFinding(
+                risk_id="LB-INTERNET-FACING",
+                title="Load balancer is internet-facing",
+                severity=Severity.MEDIUM,
+                resource_type=resource_type,
+                resource_ref=self._hash_resource_ref(change.get('address', '')),
+                evidence={"internal": False},
+                recommendation="Ensure the load balancer is intended to be public. Use WAF and restrictive Security Groups to protect public endpoints.",
+                changed_paths=None
+            )
+        return None
+
+    def _rule_ebs_encryption_off(
+        self,
+        change: Dict[str, Any],
+        plan_json: Dict[str, Any]
+    ) -> Optional[RiskFinding]:
+        """
+        EBS-ENCRYPTION-OFF: EBS volume encryption is disabled
+        """
+        resource_type = change.get('type', '')
+        if resource_type != 'aws_ebs_volume':
+            return None
+
+        after = change.get('change', {}).get('after', {})
+        if not after:
+            return None
+
+        if after.get('encrypted') is False:
+            return RiskFinding(
+                risk_id="EBS-ENCRYPTION-OFF",
+                title="EBS volume encryption is disabled",
+                severity=Severity.HIGH,
+                resource_type=resource_type,
+                resource_ref=self._hash_resource_ref(change.get('address', '')),
+                evidence={"encrypted": False},
+                recommendation="Enable EBS encryption to protect data at rest. You can enable account-level default encryption in the AWS region.",
+                changed_paths=None
+            )
         return None
