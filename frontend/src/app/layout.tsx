@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import './globals.css'
 import SystemStats from '@/components/SystemStats'
+import Gatekeeper from '@/components/Gatekeeper'
 
 export const metadata: Metadata = {
   title: 'Terraform Plan Analyzer',
@@ -40,8 +41,10 @@ export default function RootLayout({
             </div>
           </header>
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {children}
-            <SystemStats />
+            <Gatekeeper>
+              {children}
+              <SystemStats />
+            </Gatekeeper>
           </main>
         </div>
       </body>

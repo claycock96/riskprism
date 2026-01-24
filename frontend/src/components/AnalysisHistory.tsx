@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { AnalyzeResponse } from '@/lib/types'
 import { extractResourceName } from '@/lib/resourceMapping'
 
+import { authenticatedFetch } from '@/lib/api'
+
 export default function AnalysisHistory() {
     const [history, setHistory] = useState<AnalyzeResponse[]>([])
     const [loading, setLoading] = useState(true)
@@ -12,7 +14,7 @@ export default function AnalysisHistory() {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/history`)
+                const response = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/history`)
                 if (response.ok) {
                     const data = await response.json()
                     setHistory(data)

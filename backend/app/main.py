@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 import logging
+import os
 from datetime import datetime
 from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Request, Depends, Header
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.parser import TerraformPlanParser
 from app.risk_engine import RiskEngine
@@ -22,6 +22,26 @@ logger = logging.getLogger(__name__)
 
 # Track application start time
 START_TIME = datetime.utcnow()
+
+# Security: Internal Access Code
+INTERNAL_ACCESS_CODE = os.getenv("INTERNAL_ACCESS_CODE")
+
+async def verify_internal_code(x_internal_code: Optional[str] = Header(None)):
+    """
+    Dependency to verify the internal access code.
+    If INTERNAL_ACCESS_CODE is not set, access is granted (for local dev convenience).
+    In production, this should always be set.
+    """
+    if not INTERNAL_ACCESS_CODE:
+        return True
+    
+    if x_internal_code != INTERNAL_ACCESS_CODE:
+        logger.warning("Unauthorised access attempt with invalid or missing internal code")
+        raise HTTPException(
+            status_code=401, 
+            detail="Invalid or missing access code. Please enter the team access code."
+        )
+    return True
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,6 +72,15 @@ app.add_middleware(
 plan_parser = TerraformPlanParser()
 risk_engine = RiskEngine()
 llm_client = LLMClient()
+
+
+@app.get("/auth/validate", dependencies=[Depends(verify_internal_code)])
+async def validate_auth():
+    """
+    Simple endpoint to verify if the provided access code is valid.
+    Returns 200 if valid, otherwise the dependency raises 401.
+    """
+    return {"status": "valid"}
 
 
 @app.get("/")
@@ -95,7 +124,7 @@ async def health():
     return health_status
 
 
-@app.post("/analyze", response_model=AnalyzeResponse)
+@app.post("/analyze", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
 async def analyze_plan(request: Request, analyze_request: AnalyzeRequest):
     """
     Analyze a Terraform plan JSON for security risks and generate explanation.
@@ -165,7 +194,7 @@ async def analyze_plan(request: Request, analyze_request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
-@app.get("/results/{session_id}", response_model=AnalyzeResponse)
+@app.get("/results/{session_id}", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
 async def get_results(session_id: str):
     """Retrieve stored analysis result by session ID."""
     try:
@@ -187,13 +216,13 @@ async def get_results(session_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to retrieve session: {str(e)}")
 
 
-@app.get("/history", response_model=List[AnalyzeResponse])
+@app.get("/history", response_model=List[AnalyzeResponse], dependencies=[Depends(verify_internal_code)])
 async def get_history(limit: int = 20):
     """Retrieve recent analysis results."""
     return await session_store.get_all(limit=limit)
 
 
-@app.get("/sessions/stats")
+@app.get("/sessions/stats", dependencies=[Depends(verify_internal_code)])
 async def get_session_stats():
     """Get session storage statistics and application uptime."""
     stats = await session_store.stats()

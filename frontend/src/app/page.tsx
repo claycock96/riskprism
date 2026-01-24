@@ -6,6 +6,8 @@ import { AnalyzeResponse } from '@/lib/types'
 import UploadForm from '@/components/UploadForm'
 import Results from '@/components/Results'
 
+import { authenticatedFetch } from '@/lib/api'
+
 export default function Home() {
   const router = useRouter()
   const [results, setResults] = useState<AnalyzeResponse | null>(null)
@@ -19,7 +21,7 @@ export default function Home() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/analyze`, {
+      const response = await authenticatedFetch(`${apiUrl}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

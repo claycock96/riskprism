@@ -16,15 +16,12 @@ services:
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
 
       # AWS Bedrock (if using LLM_PROVIDER=bedrock)
-      # Option 1: Mount credentials file (recommended for local dev)
-      # Option 2: Use environment variables (see below)
       - AWS_DEFAULT_REGION=us-east-1
       - AWS_REGION=us-east-1
       - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-}
-      # Uncomment to use environment variables instead of mounted credentials:
-      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      # - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+
+      # Security Configuration
+      - INTERNAL_ACCESS_CODE=${INTERNAL_ACCESS_CODE:-}
     volumes:
       # Mount AWS credentials from host (for local development)
       - ~/.aws:/home/appuser/.aws:ro

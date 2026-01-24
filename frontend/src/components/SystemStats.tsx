@@ -3,13 +3,15 @@
 import { useState, useEffect } from 'react'
 import { SessionStats } from '@/lib/types'
 
+import { authenticatedFetch } from '@/lib/api'
+
 export default function SystemStats() {
     const [stats, setStats] = useState<SessionStats | null>(null)
 
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/stats`)
+                const response = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/stats`)
                 if (response.ok) {
                     const data = await response.json()
                     setStats(data)

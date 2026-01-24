@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { authenticatedFetch } from '@/lib/api'
 import Results from '@/components/Results'
 import { AnalyzeResponse } from '@/lib/types'
 
@@ -18,11 +19,11 @@ export default function ResultsPage() {
     async function fetchResults() {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-        const response = await fetch(`${apiUrl}/results/${sessionId}`)
+        const response = await authenticatedFetch(`${apiUrl}/results/${sessionId}`)
 
         if (!response.ok) {
           if (response.status === 404) {
-            setError('Session not found or expired. Sessions expire after 24 hours.')
+            setError('Session not found or expired. Sessions are stored for 30 days.')
           } else {
             setError(`Failed to load results: ${response.statusText}`)
           }
@@ -80,7 +81,7 @@ export default function ResultsPage() {
                   <strong>Session ID:</strong> <code className="bg-gray-200 px-2 py-1 rounded">{sessionId}</code>
                 </p>
                 <p className="text-sm text-gray-600">
-                  Sessions are stored in-memory for 24 hours. After that time, they are automatically expired.
+                  Sessions are stored for 30 days. After that time, the oldest reports are automatically rotated out.
                 </p>
               </div>
 
@@ -127,7 +128,7 @@ export default function ResultsPage() {
                 Shared Analysis Result
               </p>
               <p className="text-xs text-blue-700 mt-1">
-                This session expires 24 hours after creation. You can share this URL with your team.
+                This session is stored for 30 days. You can share this URL with your team.
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <code className="text-xs bg-blue-100 px-2 py-1 rounded text-blue-800">
