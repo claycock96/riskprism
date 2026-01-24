@@ -45,6 +45,8 @@ test_response.json
 .terraform.lock.hcl
 tfplan
 *.plan
+*.pem
+*.pub
 
 # Node (for frontend later)
 node_modules/

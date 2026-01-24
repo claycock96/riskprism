@@ -37,4 +37,5 @@ export interface AnalyzeResponse {
   risk_findings: RiskFinding[]
   explanation: BedrockExplanation
   pr_comment: string
+  session_id?: string
 }

@@ -1,0 +1,199 @@
+#!/bin/bash
+set -e
+
+# tf-analyze - CLI tool for Terraform Plan security analysis
+# Usage: tf-analyze <plan-file> [api-url]
+
+# Color codes
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Default API URL
+API_URL="${2:-http://localhost:8000}"
+
+# Check if plan file provided
+if [ -z "$1" ]; then
+    echo "Usage: tf-analyze <plan-file> [api-url]"
+    echo ""
+    echo "Examples:"
+    echo "  tf-analyze tfplan                    # Use local API"
+    echo "  tf-analyze tfplan http://10.0.1.5:8000  # Use remote API"
+    echo ""
+    echo "Workflow:"
+    echo "  terraform plan -out=tfplan"
+    echo "  tf-analyze tfplan"
+    echo "  terraform apply tfplan"
+    exit 1
+fi
+
+PLAN_FILE=$1
+
+# Check if plan file exists
+if [ ! -f "$PLAN_FILE" ]; then
+    echo -e "${RED}Error: Plan file '$PLAN_FILE' not found${NC}"
+    exit 1
+fi
+
+# Check if terraform is installed
+if ! command -v terraform &> /dev/null; then
+    echo -e "${RED}Error: terraform command not found${NC}"
+    echo "Please install Terraform: https://www.terraform.io/downloads"
+    exit 1
+fi
+
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo -e "${YELLOW}Warning: jq not found. Installing for better output formatting...${NC}"
+    # Try to install jq based on OS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if command -v brew &> /dev/null; then
+            brew install jq
+        else
+            echo -e "${RED}Error: jq required but not found. Install with: brew install jq${NC}"
+            exit 1
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo -e "${RED}Error: jq required. Install with: sudo apt-get install jq or sudo yum install jq${NC}"
+        exit 1
+    fi
+fi
+
+echo -e "${BOLD}🔍 Analyzing Terraform Plan...${NC}\n"
+
+# Convert plan to JSON
+echo "Converting plan to JSON..."
+PLAN_JSON=$(terraform show -json "$PLAN_FILE" 2>&1)
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error converting plan to JSON:${NC}"
+    echo "$PLAN_JSON"
+    exit 1
+fi
+
+# Send to API
+echo "Analyzing with security rules..."
+RESPONSE=$(curl -s -X POST "$API_URL/analyze" \
+    -H "Content-Type: application/json" \
+    -d "$PLAN_JSON")
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error: Failed to connect to API at $API_URL${NC}"
+    exit 1
+fi
+
+# Check if response is valid JSON
+if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
+    echo -e "${RED}Error: Invalid response from API${NC}"
+    echo "$RESPONSE"
+    exit 1
+fi
+
+# Parse response
+TOTAL_CHANGES=$(echo "$RESPONSE" | jq -r '.summary.total_changes')
+CREATES=$(echo "$RESPONSE" | jq -r '.summary.creates')
+UPDATES=$(echo "$RESPONSE" | jq -r '.summary.updates')
+DELETES=$(echo "$RESPONSE" | jq -r '.summary.deletes')
+REPLACES=$(echo "$RESPONSE" | jq -r '.summary.replaces')
+
+TOTAL_FINDINGS=$(echo "$RESPONSE" | jq '.risk_findings | length')
+CRITICAL=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="critical")] | length')
+HIGH=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="high")] | length')
+MEDIUM=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="medium")] | length')
+LOW=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="low")] | length')
+
+# Display summary
+echo ""
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}                  ANALYSIS SUMMARY${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo ""
+
+# Resource changes
+echo -e "${BOLD}Resource Changes:${NC}"
+echo "  Total: $TOTAL_CHANGES"
+[ "$CREATES" != "0" ] && echo -e "  ${GREEN}Creates:${NC}  $CREATES"
+[ "$UPDATES" != "0" ] && echo -e "  ${BLUE}Updates:${NC}  $UPDATES"
+[ "$DELETES" != "0" ] && echo -e "  ${RED}Deletes:${NC}  $DELETES"
+[ "$REPLACES" != "0" ] && echo -e "  ${YELLOW}Replaces:${NC} $REPLACES"
+echo ""
+
+# Security findings
+echo -e "${BOLD}Security Findings: ${NC}$TOTAL_FINDINGS"
+if [ "$TOTAL_FINDINGS" -gt 0 ]; then
+    [ "$CRITICAL" != "0" ] && echo -e "  ${RED}${BOLD}🔴 Critical:${NC} $CRITICAL"
+    [ "$HIGH" != "0" ] && echo -e "  ${RED}🟠 High:${NC}     $HIGH"
+    [ "$MEDIUM" != "0" ] && echo -e "  ${YELLOW}🟡 Medium:${NC}   $MEDIUM"
+    [ "$LOW" != "0" ] && echo -e "  ${BLUE}🔵 Low:${NC}      $LOW"
+else
+    echo -e "  ${GREEN}✓ No security issues found${NC}"
+fi
+echo ""
+
+# Show critical and high findings details
+if [ "$CRITICAL" != "0" ] || [ "$HIGH" != "0" ]; then
+    echo -e "${BOLD}High Priority Findings:${NC}"
+    echo -e "${BOLD}───────────────────────────────────────────────────────${NC}"
+
+    echo "$RESPONSE" | jq -r '.risk_findings[] | select(.severity=="critical" or .severity=="high") |
+        "\n[\(.severity | ascii_upcase)] \(.title)\n  Resource: \(.resource_type)\n  → \(.recommendation)"' | \
+    while IFS= read -r line; do
+        if [[ $line == \[CRITICAL\]* ]]; then
+            echo -e "${RED}${BOLD}$line${NC}"
+        elif [[ $line == \[HIGH\]* ]]; then
+            echo -e "${RED}$line${NC}"
+        else
+            echo -e "$line"
+        fi
+    done
+    echo ""
+fi
+
+# Executive summary (if available)
+EXEC_SUMMARY=$(echo "$RESPONSE" | jq -r '.explanation.executive_summary[]?' 2>/dev/null)
+if [ ! -z "$EXEC_SUMMARY" ]; then
+    echo -e "${BOLD}AI Summary:${NC}"
+    echo -e "${BOLD}───────────────────────────────────────────────────────${NC}"
+    echo "$EXEC_SUMMARY" | while IFS= read -r line; do
+        echo "  • $line"
+    done
+    echo ""
+fi
+
+# Footer with next steps
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+
+if [ "$CRITICAL" != "0" ]; then
+    echo -e "${RED}${BOLD}⚠️  CRITICAL ISSUES FOUND - Review required before apply${NC}"
+    EXIT_CODE=2
+elif [ "$HIGH" != "0" ]; then
+    echo -e "${YELLOW}${BOLD}⚠️  HIGH RISK ISSUES - Review recommended${NC}"
+    EXIT_CODE=1
+else
+    echo -e "${GREEN}${BOLD}✓ Plan looks good - proceed with terraform apply${NC}"
+    EXIT_CODE=0
+fi
+
+echo ""
+
+# Extract session_id and show web UI link
+SESSION_ID=$(echo "$RESPONSE" | jq -r '.session_id // empty')
+if [ ! -z "$SESSION_ID" ]; then
+    # Determine frontend URL based on API URL
+    if [[ "$API_URL" == *"localhost"* ]] || [[ "$API_URL" == *"127.0.0.1"* ]]; then
+        FRONTEND_URL="http://localhost:3000"
+    else
+        # Extract host from API URL and use port 3000
+        FRONTEND_URL=$(echo "$API_URL" | sed 's/:8000/:3000/')
+    fi
+    echo "📋 Full report: ${FRONTEND_URL}/results/${SESSION_ID}"
+else
+    echo "📋 No session saved (analysis complete)"
+fi
+
+echo ""
+
+exit $EXIT_CODE

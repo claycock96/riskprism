@@ -8,6 +8,7 @@ from app.parser import TerraformPlanParser
 from app.risk_engine import RiskEngine
 from app.llm_client import LLMClient
 from app.models import AnalyzeRequest, AnalyzeResponse
+from app.session_store import session_store
 
 # Configure logging
 logging.basicConfig(
@@ -194,7 +195,11 @@ async def analyze_plan(request: AnalyzeRequest):
             pr_comment=llm_response["pr_comment"]
         )
 
-        logger.info(f"Analysis complete. Found {len(risk_findings)} risks")
+        # Step 8: Save to session store and add session_id
+        session_id = session_store.save(response)
+        response.session_id = session_id
+
+        logger.info(f"Analysis complete. Found {len(risk_findings)} risks. Session ID: {session_id}")
         return response
 
     except ValueError as e:
@@ -203,6 +208,44 @@ async def analyze_plan(request: AnalyzeRequest):
     except Exception as e:
         logger.error(f"Analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@app.get("/results/{session_id}", response_model=AnalyzeResponse)
+async def get_results(session_id: str):
+    """
+    Retrieve a stored analysis result by session ID.
+
+    Allows CLI users to share results and view full analysis in the web UI.
+    Sessions are stored in-memory for 24 hours.
+    """
+    try:
+        logger.info(f"Retrieving session: {session_id}")
+        analysis = session_store.get(session_id)
+
+        if analysis is None:
+            logger.warning(f"Session not found or expired: {session_id}")
+            raise HTTPException(
+                status_code=404,
+                detail="Session not found or expired. Sessions expire after 24 hours."
+            )
+
+        logger.info(f"Session retrieved successfully: {session_id}")
+        return analysis
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve session: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve session: {str(e)}")
+
+
+@app.get("/sessions/stats")
+async def get_session_stats():
+    """
+    Get session storage statistics.
+    Useful for monitoring and debugging.
+    """
+    return session_store.stats()
 
 
 if __name__ == "__main__":

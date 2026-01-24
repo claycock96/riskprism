@@ -29,6 +29,7 @@ class RiskEngine:
             self._rule_rds_publicly_accessible,
             self._rule_rds_encryption_off,
             self._rule_iam_admin_wildcard,
+            self._rule_iam_managed_policy_attachment,
             self._rule_cloudtrail_disabled,
         ]
 
@@ -403,6 +404,73 @@ class RiskEngine:
                 recommendation="Scope IAM actions and resources to least privilege. Avoid Action: '*' and Resource: '*'. Use separate break-glass admin roles with MFA and monitoring.",
                 changed_paths=None
             )
+
+        return None
+
+    def _rule_iam_managed_policy_attachment(
+        self,
+        change: Dict[str, Any],
+        plan_json: Dict[str, Any]
+    ) -> Optional[RiskFinding]:
+        """
+        IAM-MANAGED-POLICY: Dangerous AWS managed policy attachment
+        """
+        resource_type = change.get('type', '')
+
+        # Check for policy attachment resources
+        if resource_type not in [
+            'aws_iam_role_policy_attachment',
+            'aws_iam_user_policy_attachment',
+            'aws_iam_group_policy_attachment'
+        ]:
+            return None
+
+        change_data = change.get('change', {})
+        after = change_data.get('after', {})
+
+        if not after:
+            return None
+
+        policy_arn = after.get('policy_arn', '')
+
+        if not isinstance(policy_arn, str):
+            return None
+
+        # List of dangerous AWS managed policies
+        dangerous_policies = {
+            'AdministratorAccess': 'Grants full access to all AWS services and resources',
+            'PowerUserAccess': 'Grants full access except IAM and Organizations management',
+            'IAMFullAccess': 'Grants full access to IAM, enabling privilege escalation',
+            'SecurityAudit': 'Grants read access to security-related AWS resources',
+            'SystemAdministrator': 'Grants full access to AWS services except billing',
+        }
+
+        # Check if the policy ARN matches any dangerous policies
+        for policy_name, description in dangerous_policies.items():
+            if policy_name in policy_arn:
+                # Determine severity based on the policy
+                if policy_name in ['AdministratorAccess', 'IAMFullAccess']:
+                    severity = Severity.CRITICAL
+                elif policy_name == 'PowerUserAccess':
+                    severity = Severity.HIGH
+                else:
+                    severity = Severity.MEDIUM
+
+                return RiskFinding(
+                    risk_id="IAM-MANAGED-POLICY",
+                    title=f"Dangerous AWS managed policy attached: {policy_name}",
+                    severity=severity,
+                    resource_type=resource_type,
+                    resource_ref=self._hash_resource_ref(change.get('address', '')),
+                    evidence={
+                        "policy_arn": policy_arn,
+                        "policy_name": policy_name,
+                        "description": description,
+                        "action": change_data.get('actions', [])
+                    },
+                    recommendation=f"Review the need for {policy_name}. This policy grants excessive permissions. Consider using a custom policy with least-privilege permissions or a more restrictive AWS managed policy. For break-glass admin access, use a separate role with MFA and strict approval workflows.",
+                    changed_paths=None
+                )
 
         return None
 

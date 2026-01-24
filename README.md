@@ -1,21 +1,24 @@
 # Terraform Plan Analyzer
 
-A security-focused web application that analyzes Terraform plans for risks, generates plain-English explanations using AWS Bedrock, and produces review-ready PR comments.
+A security-focused web application that analyzes Terraform plans for risks, generates plain-English explanations using AI, and produces review-ready PR comments.
 
 ## Features
 
-- **Deterministic Risk Detection**: 20+ security rules covering IAM, networking, encryption, and more
+- **Deterministic Risk Detection**: 9 production-ready security rules covering IAM, networking, encryption, and more
 - **Safe Data Handling**: Feature extraction and sanitization - never sends raw plan JSON to LLMs
-- **AI-Powered Explanations**: Uses AWS Bedrock (Claude) to generate human-readable analysis
+- **Frontend-Only Resource Mapping**: AI sees hashed resource names for privacy, but you see readable names in the UI
+- **AI-Powered Explanations**: Uses AWS Bedrock (Claude) or Anthropic API to generate human-readable analysis
+- **Interactive UI**: Hover tooltips on resource stats, expandable evidence sections, inline security documentation
 - **PR-Ready Output**: Copy-paste formatted comments for code reviews
 - **Dockerized**: Full stack runs in containers for consistent local development
+- **AWS Deployment**: Terraform IaC for easy EC2 deployment
 
 ## Architecture
 
 - **Backend**: Python FastAPI with async support
-- **Frontend**: Next.js (coming soon)
-- **AI**: AWS Bedrock (Claude 3.5 Sonnet)
-- **Deployment**: Docker containers
+- **Frontend**: Next.js 14 with TypeScript and Tailwind CSS
+- **AI**: AWS Bedrock (Claude 3.5 Sonnet) or Anthropic API
+- **Deployment**: Docker Compose for local, Terraform for AWS EC2
 
 ## Quick Start
 
@@ -31,6 +34,7 @@ A security-focused web application that analyzes Terraform plans for risks, gene
 # Start all services
 ./start.sh
 
+# Frontend:     http://localhost:3000  (Upload and analyze plans via UI)
 # Backend API:  http://localhost:8000
 # API Docs:     http://localhost:8000/docs
 # Health Check: http://localhost:8000/health
@@ -100,7 +104,75 @@ curl http://localhost:8000/health
 ./shell.sh      # Open shell in container (optional: ./shell.sh backend)
 ```
 
+## CLI Tool for Local Development
+
+For developers running Terraform locally, use the included CLI tool for quick analysis:
+
+### Installation
+
+```bash
+# Add to your PATH (one-time setup)
+sudo cp tf-analyze /usr/local/bin/
+# Or use directly: ./tf-analyze
+```
+
+### Workflow
+
+```bash
+# 1. Generate Terraform plan
+terraform plan -out=tfplan
+
+# 2. Analyze with CLI tool
+tf-analyze tfplan
+
+# 3. Review output, then apply if safe
+terraform apply tfplan
+```
+
+### Example Output
+
+```
+🔍 Analyzing Terraform Plan...
+
+═══════════════════════════════════════════════════════
+                  ANALYSIS SUMMARY
+═══════════════════════════════════════════════════════
+
+Resource Changes:
+  Total: 5
+  Creates:  3
+  Updates:  1
+  Deletes:  1
+
+Security Findings: 2
+  🔴 Critical: 1
+  🟠 High:     1
+
+High Priority Findings:
+───────────────────────────────────────────────────────
+
+[CRITICAL] Security group allows public internet ingress
+  Resource: aws_security_group
+  → Restrict CIDR blocks to known IP ranges...
+
+═══════════════════════════════════════════════════════
+⚠️  CRITICAL ISSUES FOUND - Review required before apply
+
+📋 Full report: http://localhost:3000
+```
+
+**Exit Codes:**
+- `0` - No critical/high findings (safe to proceed)
+- `1` - High severity findings (review recommended)
+- `2` - Critical findings (review required)
+
+See [CLI_USAGE.md](CLI_USAGE.md) for advanced usage, git hooks, and Makefile integration.
+
 ## Usage
+
+### Web UI
+
+Simply visit [http://localhost:3000](http://localhost:3000) and upload your plan JSON file.
 
 ### Generate Terraform Plan JSON
 
@@ -170,7 +242,26 @@ terraform-webapp/
 │   │   └── bedrock_client.py # AWS Bedrock integration
 │   ├── requirements.txt
 │   └── Dockerfile
-├── frontend/                  # Coming soon
+├── frontend/
+│   ├── src/
+│   │   ├── app/              # Next.js app router
+│   │   ├── components/       # React components
+│   │   │   ├── AIExplanation.tsx
+│   │   │   ├── RiskFindings.tsx
+│   │   │   ├── Summary.tsx
+│   │   │   └── ...
+│   │   └── lib/
+│   │       ├── resourceMapping.ts  # Hash-to-name mapping
+│   │       └── types.ts
+│   ├── package.json
+│   └── Dockerfile
+├── terraform/                 # AWS deployment IaC
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── user_data.sh
+│   ├── deploy.sh
+│   └── README.md
 ├── docker-compose.yml
 └── design.md                  # Full design documentation
 ```
@@ -207,7 +298,7 @@ If AWS credentials are not configured, the backend runs in mock mode:
 
 ## Security Rules
 
-The risk engine implements 8 core rules (with 12+ more planned):
+The risk engine implements 9 production-ready rules (with 11+ more planned):
 
 ### Implemented
 1. **SG-OPEN-INGRESS** - Public security group ingress (Critical/High)
@@ -216,8 +307,9 @@ The risk engine implements 8 core rules (with 12+ more planned):
 4. **S3-ENCRYPTION-REMOVED** - S3 encryption removed (High)
 5. **RDS-PUBLICLY-ACCESSIBLE** - Public RDS instance (Critical)
 6. **RDS-ENCRYPTION-OFF** - RDS encryption disabled (High)
-7. **IAM-ADMIN-WILDCARD** - IAM wildcard permissions (Critical)
-8. **CT-LOGGING-DISABLED** - CloudTrail disabled (Critical)
+7. **IAM-ADMIN-WILDCARD** - IAM wildcard permissions in inline policies (Critical)
+8. **IAM-MANAGED-POLICY** - Dangerous AWS managed policy attachments (Critical/High)
+9. **CT-LOGGING-DISABLED** - CloudTrail disabled (Critical)
 
 ### Planned
 - NACL-ALLOW-ALL
@@ -305,11 +397,56 @@ curl http://localhost:8000/health | jq '.components.llm'
 # Should show: "provider": "bedrock", "mode": "api"
 ```
 
+## AWS Deployment
+
+Deploy to AWS EC2 using the included Terraform configuration:
+
+```bash
+cd terraform
+./deploy.sh
+```
+
+The deployment script will:
+1. Prompt for VPC ID and Subnet ID
+2. Generate and store SSH keys in AWS Secrets Manager
+3. Create a t4g.small EC2 instance with Docker + Docker Compose
+4. Attach an IAM role with Bedrock permissions
+5. Configure security groups for VPC-only access
+6. Auto-deploy the application
+
+**Cost**: ~$15/month + Bedrock usage
+
+### Using CLI with Deployed Instance
+
+Once deployed, your team can use the CLI tool with the remote API:
+
+```bash
+# Get the private IP from Terraform output
+cd terraform
+PRIVATE_IP=$(terraform output -raw instance_private_ip)
+
+# Use CLI with remote API (from within VPN/bastion)
+tf-analyze tfplan http://${PRIVATE_IP}:8000
+```
+
+See [terraform/README.md](terraform/README.md) for detailed deployment instructions.
+
+## Frontend Security Features
+
+The frontend implements privacy-preserving resource name display:
+
+1. **Resource Hashing**: Backend hashes resource addresses (e.g., `aws_db_instance.prod-database` → `res_abc123def4`)
+2. **Metadata Only**: Only resource types, actions, and changed paths sent to AI
+3. **Sensitive Keys Blocked**: Passwords, tokens, secrets filtered during parsing
+4. **Frontend Enhancement**: UI maps hashes back to readable names for display
+
+Result: AI gets privacy-protected data, you see readable resource names. Hover over the "How is data sanitized?" link in the UI for details.
+
 ## Contributing
 
 This is an MVP. Contributions welcome for:
 - Additional risk rules
-- Frontend development (Next.js)
+- Enhanced frontend features
 - Test coverage improvements
 - Documentation
 

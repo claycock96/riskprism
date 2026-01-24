@@ -1,8 +1,9 @@
 # Terraform Plan Explainer + Risk Gate — Design Doc (design.md)
 
-Owner: Chris  
-Audience: DevOps / Cloud Engineering team  
-Status: Draft (MVP-focused)
+Owner: Chris
+Audience: DevOps / Cloud Engineering team
+Status: MVP Implemented (v1.0)
+Last Updated: 2026-01-24
 
 ---
 
@@ -21,7 +22,56 @@ We want a web app that:
 
 ---
 
-## 2) Goals / Non-Goals
+## 2) Implementation Status (v1.0)
+
+### ✅ Completed
+
+**Backend (Python FastAPI)**
+- Terraform plan JSON parser with sanitization
+- 9 production-ready security rules in risk engine
+- AWS Bedrock integration (Claude 3.5 Sonnet)
+- Anthropic API direct integration
+- Mock mode fallback for development without credentials
+- Resource address hashing (SHA-256) for privacy
+- Sensitive key filtering during parsing
+
+**Frontend (Next.js 14 + TypeScript)**
+- File upload interface with drag-and-drop
+- Real-time analysis results display
+- Frontend-only resource mapping (hash → readable names)
+- Interactive hover tooltips on resource change statistics
+- Expandable evidence sections in risk findings
+- Inline security documentation ("How is data sanitized?")
+- Copy-to-clipboard PR comment output
+- Responsive design with Tailwind CSS
+
+**Infrastructure & Deployment**
+- Docker Compose for local development
+- Multi-container orchestration (frontend + backend)
+- Terraform IaC for AWS EC2 deployment
+- Auto-generated SSH keys stored in Secrets Manager
+- IAM role with Bedrock permissions
+- Private subnet deployment with VPC-only access
+- Interactive deployment script with plan review
+
+**Security & Privacy**
+- Resource hashing before LLM submission
+- Metadata-only extraction (no values sent to AI)
+- Sensitive attribute filtering (passwords, tokens, keys)
+- Frontend enhancement layer for readability
+- AI sees: `res_abc123def4`
+- User sees: `aws_security_group (web_server)`
+
+### 🚧 In Progress / Planned
+- Additional risk rules (11+ planned from design spec)
+- Historical analysis tracking
+- Multi-file plan support
+- CI/CD integration examples
+- Enhanced test coverage
+
+---
+
+## 3) Goals / Non-Goals
 
 ### Goals
 - **Safe-by-design**: raw plan should not be sent to Bedrock.
@@ -37,111 +87,162 @@ We want a web app that:
 
 ---
 
-## 3) High-Level Approach
+## 4) High-Level Approach
 
 **Core principle:** Prefer *feature extraction* over *full text redaction*.
 
-We will:
-1) Parse Terraform plan JSON locally on backend (or in browser).
-2) Extract a **minimal semantic summary** of changes (“Diff Skeleton”).
-3) Run a deterministic **risk rule engine** on the parsed plan.
-4) Produce a **sanitized payload** (summary + risk findings + safe metadata) for Bedrock.
-5) Use Bedrock to generate a polished plain-English narrative, review questions, and recommended next steps.
+Implementation:
+1) Parse Terraform plan JSON on backend (FastAPI)
+2) Extract a **minimal semantic summary** of changes ("Diff Skeleton")
+3) Run a deterministic **risk rule engine** on the parsed plan
+4) Produce a **sanitized payload** (summary + risk findings + safe metadata) for LLM
+5) Use AWS Bedrock or Anthropic API to generate polished plain-English narrative
+6) Frontend maps hashed resource IDs back to readable names for display
 
 ---
 
-## 4) Inputs & Supported Formats
+## 5) Inputs & Supported Formats
 
-### Supported (MVP)
+### Supported (Implemented)
 - `terraform show -json tfplan` output (Plan JSON)
+- File upload via web interface
+- Drag-and-drop support
 
-### Optional (later)
+### Future Enhancements
 - Raw `terraform plan` text (convert to JSON server-side by calling `terraform show -json` if terraform binary is available)
 - OPA/Rego integration for policy-as-code
+- Multi-file analysis
 
 ---
 
-## 5) Architecture
+## 6) Architecture
 
-### Components
-- **Frontend (Next.js)**
-  - Upload/paste plan JSON
-  - Display summary, risks, explanation, PR comment
-  - Optional: client-side sanitization mode (raw plan never leaves browser)
+### Components (Implemented)
 
-- **API Backend (FastAPI or Next.js API routes)**
-  - `POST /analyze` accepts plan JSON (or already-extracted features)
-  - Parses plan JSON
-  - Runs risk rules
-  - Builds sanitized payload for Bedrock
-  - Calls Bedrock, returns explanation
+**Frontend (Next.js 14 + TypeScript)**
+- File upload interface with drag-and-drop
+- Real-time progress indication
+- Summary dashboard with hover tooltips
+- Interactive risk findings with expandable evidence
+- AI explanation display with resource name mapping
+- Copy-to-clipboard PR comment
+- Inline security documentation
+- **Key Feature**: Frontend-only hash-to-name mapping (privacy + readability)
 
-- **Storage (optional for MVP)**
-  - DynamoDB for saved analyses (sanitized only)
-  - S3 for uploads (only if allowed; prefer not storing raw plan)
+**API Backend (Python FastAPI)**
+- `POST /analyze` endpoint accepts plan JSON
+- Parses plan JSON with sanitization
+- Runs 9 security risk rules
+- Builds sanitized payload for LLM
+- Calls AWS Bedrock or Anthropic API
+- Returns structured analysis response
+- Mock mode fallback for development
 
-### Data Flow (recommended)
-1) Browser uploads plan JSON to backend over TLS
-2) Backend:
-   - Parses
-   - Extracts features
-   - Runs rule engine
-   - Discards raw plan (or holds only in-memory)
-   - Calls Bedrock with sanitized payload
-3) Backend returns:
-   - Summary
-   - Risks
-   - LLM explanation + PR comment
+**No Storage Layer (MVP)**
+- Raw plans never stored
+- Processing is stateless and in-memory only
+- Future: Optional analysis history in DynamoDB (sanitized only)
 
-### "Strict Mode" (best story)
-- Browser performs initial sanitization + extraction
-- Backend receives **only extracted features** (no raw plan)
-- Backend runs LLM and returns narrative
+### Data Flow (Implemented)
 
-### Deployment & Local Development
-- **Containerization**: All components (frontend, backend/API) will be dockerized
-- **Local development**: Docker Compose for running full stack on macOS (Apple Silicon + Intel compatible)
-- **Build & test workflow**: Docker-based build ensures consistency across environments
-- **Container structure**:
-  - Frontend container: Next.js app with production build
-  - Backend/API container (if separate): Python FastAPI or Next.js API routes
-  - Local AWS credential mounting for Bedrock access during development
-- **Benefits**: Reproducible builds, easy CI/CD integration, simplified deployment to ECS/EKS/App Runner
+1) User uploads plan JSON via browser (HTTPS)
+2) Frontend sends to backend API
+3) Backend:
+   - Parses and extracts features
+   - Hashes resource addresses (SHA-256, 10-char prefix)
+   - Filters sensitive attributes
+   - Runs risk detection rules
+   - Discards raw plan from memory
+   - Calls LLM with sanitized payload only
+   - Returns analysis with hashed resource IDs
+4) Frontend:
+   - Receives analysis from backend
+   - Creates hash→address mapping from diff_skeleton
+   - Displays readable resource names in UI
+   - **User sees**: `aws_security_group (web_server)`
+   - **AI saw**: `res_abc123def4`
+
+### Deployment Options (Implemented)
+
+**Local Development**
+- Docker Compose orchestration
+- Frontend container (Next.js) on port 3000
+- Backend container (FastAPI) on port 8000
+- Hot reload support
+- AWS credential mounting via `~/.aws` volume
+
+**AWS Deployment**
+- Terraform IaC for EC2 deployment
+- t4g.small instance (ARM Graviton)
+- Amazon Linux 2023
+- Docker + Docker Compose
+- IAM role with Bedrock permissions
+- SSH key auto-generated and stored in Secrets Manager
+- Private subnet deployment (VPC-only access)
+- Security group: inbound from VPC CIDR only
 
 ---
 
-## 6) Security & Data Handling Requirements
+## 7) Security & Data Handling (Implemented)
 
-### Must
-- Never send raw plan JSON to Bedrock.
-- Denylist sensitive keys and redact likely secrets.
-- Avoid storing raw plans at rest (MVP).
-- Log only non-sensitive metadata (request id, counts, timings).
+### Requirements Met ✅
+- ✅ Never send raw plan JSON to LLM
+- ✅ Denylist sensitive keys and filter secrets
+- ✅ No raw plan storage (stateless processing)
+- ✅ Log only non-sensitive metadata
 
-### Nice-to-have
-- Client-side extraction/sanitization option toggle
-- Configurable org policy: “no persistence” vs “store sanitized report”
+### Implementation Details
+
+**Resource Hashing** (Backend)
+```python
+# SHA-256 hash of resource address, 10-char prefix
+resource_id_hash = hashlib.sha256(address.encode()).hexdigest()[:10]
+# Example: aws_security_group.web_server → res_abc123def4
+```
+
+**Sensitive Key Filtering** (Backend)
+Attributes matching these patterns are completely excluded:
+- `password`, `passwd`, `secret`, `token`, `apikey`, `api_key`
+- `access_key`, `secret_key`, `private_key`, `client_secret`
+- `certificate`, `cert`, `key_material`, `user_data`
+
+**Frontend-Only Name Mapping** (New Feature)
+```typescript
+// Backend includes resource_address in diff_skeleton
+// Frontend creates mapping: hash → original address
+const resourceMapping = createResourceMapping(diffSkeleton, riskFindings)
+
+// Text enhancement replaces hashes with readable names
+enhanceTextWithResourceNames(aiText, resourceMapping)
+// "res_abc123def4" → "aws_security_group (web_server)"
+```
+
+**What AI Sees vs. User Sees**
+- AI input: `res_abc123def4`, type=`aws_security_group`, action=`update`, paths=`[ingress]`
+- User output: `aws_security_group (web_server)` with full context
+
+### Future Enhancements
+- Configurable org policy: "no persistence" vs "store sanitized report"
+- Optional client-side extraction mode
 
 ---
 
-## 7) Plan Parsing and “Diff Skeleton” Feature Extraction
+## 8) Plan Parsing and "Diff Skeleton" Feature Extraction
 
-### Terraform Plan JSON fields of interest (typical)
+### Terraform Plan JSON fields of interest (implemented)
 - `resource_changes[]`
   - `address`, `mode`, `type`, `name`
   - `change.actions` (create/update/delete/replace/no-op)
   - `change.before` / `change.after` / `change.after_unknown`
   - `change.before_sensitive` / `change.after_sensitive` (if present)
-- `configuration` (optional; may include values and references)
-- `planned_values` (optional)
 
-### Diff Skeleton: Minimal representation
+### Diff Skeleton: Minimal representation (implemented)
 For each resource change:
 - `resource_type`: e.g., `aws_security_group`
 - `action`: create/update/delete/replace
 - `changed_paths`: list of attribute paths that changed (names only)
-- `safety_tags`: derived classifications (e.g., public exposure, encryption off)
-- `resource_id_hash`: stable hash of `address` for correlation without disclosure
+- `resource_id_hash`: stable hash of `address` for correlation
+- `resource_address`: original address (sent to frontend, NOT to LLM)
 
 #### Changed-path extraction
 Compute changed paths by recursively comparing `before` and `after` objects:
@@ -223,17 +324,82 @@ Each risk finding:
 
 ---
 
-## 10) Initial Risk Rules (MVP Set: 20)
+## 10) Risk Rules (9 Implemented, 11 Planned)
 
 > Rules use the parsed plan JSON. Evidence must be *classified* not literal (e.g., `public_cidr=true`, `ports=[22]`).
 
-### Networking / Exposure
-1. **SG-OPEN-INGRESS**
+### ✅ Implemented Rules (v1.0)
+
+**Networking / Exposure**
+1. **SG-OPEN-INGRESS** ✅
    - Trigger: `aws_security_group` / `aws_security_group_rule` ingress includes public cidr (0.0.0.0/0 or ::/0)
    - Severity: High/Critical (Critical if ports include 22, 3389, 5432, 3306)
    - Evidence: `public_cidr=true`, `ports=[...]`
    - Recommendation: restrict CIDRs, use SSM/bastion, tighten ports.
 
+**IAM / Privilege**
+2. **IAM-ADMIN-WILDCARD** ✅
+   - Trigger: IAM inline policy statements add `Action: "*"`, or service wildcard like `iam:*` without tight conditions/resources
+   - Severity: Critical
+   - Evidence: `action_wildcard=true`, `admin_risk=true`
+   - Recommendation: scope actions/resources; add conditions; separate break-glass.
+   - Resources: `aws_iam_policy`, `aws_iam_role_policy`, `aws_iam_user_policy`
+
+3. **IAM-MANAGED-POLICY** ✅ **(New in v1.0)**
+   - Trigger: Attachment of dangerous AWS managed policies
+   - Severity: Critical/High/Medium (depends on policy)
+   - Evidence: `policy_arn`, `policy_name`, `description`
+   - Flags:
+     - AdministratorAccess (Critical)
+     - IAMFullAccess (Critical)
+     - PowerUserAccess (High)
+     - SystemAdministrator (Medium)
+     - SecurityAudit (Medium)
+   - Recommendation: Use custom policies with least-privilege permissions. For break-glass admin access, use separate role with MFA.
+   - Resources: `aws_iam_role_policy_attachment`, `aws_iam_user_policy_attachment`, `aws_iam_group_policy_attachment`
+
+**S3 / Storage**
+4. **S3-PUBLIC-ACL-OR-POLICY** ✅
+   - Trigger: S3 bucket policy/ACL becomes public or allows `Principal: "*"` with s3:GetObject
+   - Severity: Critical
+   - Evidence: `principal_star=true`, `public_read=true`
+   - Recommendation: block public access; restrict principals.
+
+5. **S3-PAB-REMOVED** ✅
+   - Trigger: `aws_s3_bucket_public_access_block` removed or set to false values
+   - Severity: High
+   - Evidence: `pab_disabled=true`
+   - Recommendation: keep PAB on except explicitly approved.
+
+6. **S3-ENCRYPTION-REMOVED** ✅
+   - Trigger: bucket server-side encryption configuration removed/disabled
+   - Severity: High
+   - Evidence: `sse_removed=true`
+   - Recommendation: enable SSE (SSE-KMS where required).
+
+**Datastores / Encryption**
+7. **RDS-PUBLICLY-ACCESSIBLE** ✅
+   - Trigger: `aws_db_instance publicly_accessible=true`
+   - Severity: Critical
+   - Evidence: `publicly_accessible=true`
+   - Recommendation: keep private; use VPC access + SG controls.
+
+8. **RDS-ENCRYPTION-OFF** ✅
+   - Trigger: `storage_encrypted` false or encryption removed
+   - Severity: High
+   - Evidence: `encryption_removed=true`
+   - Recommendation: enable encryption; evaluate snapshot/restore path.
+
+**Logging / Monitoring**
+9. **CT-LOGGING-DISABLED** ✅
+   - Trigger: `aws_cloudtrail` set to not logging / trail removed
+   - Severity: Critical
+   - Evidence: `cloudtrail_removed_or_disabled=true`
+   - Recommendation: maintain org trails; verify logging.
+
+### 🚧 Planned Rules
+
+**Networking / Exposure**
 2. **NACL-ALLOW-ALL**
    - Trigger: `aws_network_acl_rule` allows 0.0.0.0/0 with wide ports or protocol -1
    - Severity: High
@@ -246,16 +412,14 @@ Each risk finding:
    - Evidence: `internet_facing=true`
    - Recommendation: confirm intended; restrict SG and listener ports; WAF.
 
-4. **CF-ORIGIN-PUBLIC**
-S3/ALB**
+4. **CF-ORIGIN-PUBLIC-S3/ALB**
    - Trigger: CloudFront origin points to a resource that is also public (detect via other flags)
    - Severity: Medium
    - Evidence: `origin_exposure_risk=true`
    - Recommendation: ensure origin is private behind OAC/OAI or internal ALB.
 
-### IAM / Privilege
-5. **IAM-ADMIN-WILDCARD**
-   - Trigger: policy statements add `Action: "*"`, or service wildcard like `iam:*`, `kms:*`, `s3:*` without tight conditions/resources
+**IAM / Privilege**
+5. **IAM-PASSROLE-BROAD**
    - Severity: Critical
    - Evidence: `action_wildcard=true`, `service_wildcard=iam`
    - Recommendation: scope actions/resources; add conditions; separate break-glass.
@@ -400,3 +564,47 @@ Request (Option A: raw plan JSON to backend):
     "max_findings": 50
   }
 }
+
+
+---
+
+## Changelog
+
+### v1.0 (2026-01-24) - MVP Release
+
+**Frontend Implementation**
+- ✅ Next.js 14 web application with TypeScript
+- ✅ File upload interface with drag-and-drop
+- ✅ Interactive UI with hover tooltips on resource statistics
+- ✅ Frontend-only resource name mapping (privacy + readability)
+- ✅ Expandable evidence sections in risk findings
+- ✅ Inline security documentation ("How is data sanitized?")
+- ✅ Copy-to-clipboard PR comment output
+- ✅ Responsive design with Tailwind CSS
+
+**Backend Enhancements**
+- ✅ Resource address hashing (SHA-256, 10-char prefix)
+- ✅ New security rule: IAM-MANAGED-POLICY (detects dangerous AWS managed policy attachments)
+- ✅ Enhanced diff_skeleton to include resource_address (for frontend mapping only)
+- ✅ Dual LLM provider support (AWS Bedrock + Anthropic API)
+
+**Infrastructure**
+- ✅ Docker Compose multi-container orchestration
+- ✅ Terraform IaC for AWS EC2 deployment
+- ✅ Auto-generated SSH keys with Secrets Manager storage
+- ✅ IAM role with Bedrock permissions
+- ✅ Interactive deployment script with plan review
+
+**Security Features**
+- ✅ Resource names hashed before LLM submission
+- ✅ Metadata-only extraction (no values sent to AI)
+- ✅ Sensitive attribute filtering
+- ✅ Frontend hash-to-name translation
+- ✅ AI sees: `res_abc123def4` → User sees: `aws_security_group (web_server)`
+
+**Risk Rules**: 9 production-ready, 11 planned
+
+---
+
+*End of Design Document*
+

@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AnalyzeResponse } from '@/lib/types'
 import UploadForm from '@/components/UploadForm'
 import Results from '@/components/Results'
 
 export default function Home() {
+  const router = useRouter()
   const [results, setResults] = useState<AnalyzeResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +33,14 @@ export default function Home() {
       }
 
       const data: AnalyzeResponse = await response.json()
-      setResults(data)
+
+      // Redirect to shareable results page if session_id is available
+      if (data.session_id) {
+        router.push(`/results/${data.session_id}`)
+      } else {
+        // Fallback: show results on current page if no session_id
+        setResults(data)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze plan')
     } finally {

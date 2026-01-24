@@ -77,3 +77,4 @@ class AnalyzeResponse(BaseModel):
     risk_findings: List[RiskFinding] = Field(..., description="Deterministic risk findings")
     explanation: BedrockExplanation = Field(..., description="Plain-English explanation from Bedrock")
     pr_comment: str = Field(..., description="Copy-paste ready PR comment text")
+    session_id: Optional[str] = Field(None, description="Session ID for sharing/viewing full results")
