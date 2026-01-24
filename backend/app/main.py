@@ -260,15 +260,17 @@ from app.analyzers import IAMPolicyAnalyzer
 iam_analyzer = IAMPolicyAnalyzer()
 
 
-@app.post("/analyze/iam", response_model=IAMAnalyzeResponse, dependencies=[Depends(verify_internal_code)])
+@app.post("/analyze/iam", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
 @limiter.limit("10/minute")
 async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeRequest):
     """
     Analyze an IAM Policy JSON for security risks.
-    
+
     Supports:
     - Standard IAM policy documents: {"Version": "...", "Statement": [...]}
     - Wrapped formats: {"policy": {...}} or {"Policy": {...}}
+
+    Returns AnalyzeResponse with session persistence (same format as Terraform).
     """
     try:
         # Security: payload size check
@@ -282,34 +284,78 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
         logger.info("Parsing IAM policy")
         parsed_policy = iam_analyzer.parse(analyze_request.policy)
 
-        # Step 2: Run IAM security rules
+        # Step 2: Calculate policy hash for caching
+        policy_hash = iam_analyzer.calculate_policy_hash()
+        cached_analysis = await session_store.get_by_plan_hash(policy_hash)
+
+        if cached_analysis:
+            logger.info(f"CACHE HIT: Serving cached IAM analysis for policy hash {policy_hash}")
+            # Create new session for this cached result
+            user_ip = request.client.host if request.client else "unknown"
+            user_agent = request.headers.get("user-agent", "unknown")
+
+            try:
+                session_id = await session_store.save(
+                    cached_analysis,
+                    user_ip=user_ip,
+                    user_agent=user_agent
+                )
+                cached_analysis.session_id = session_id
+            except Exception as e:
+                logger.warning(f"Failed to save cached analysis trace: {e}")
+
+            return cached_analysis
+
+        # Step 3: Run IAM security rules
         logger.info("Running IAM risk analysis")
         max_findings = analyze_request.options.max_findings if analyze_request.options else 50
         risk_findings = iam_analyzer.analyze(parsed_policy, max_findings=max_findings)
 
-        # Step 3: Generate summary
+        # Step 4: Generate summary (IAM format)
         summary_dict = iam_analyzer.generate_summary(parsed_policy)
-        summary = IAMSummary(**summary_dict)
 
-        # Step 4: Create sanitized payload for LLM
+        # Step 5: Create sanitized payload for LLM
         logger.info("Creating sanitized payload for LLM")
         sanitized_payload = iam_analyzer.sanitize_for_llm(parsed_policy, risk_findings)
 
-        # Step 5: Call LLM
+        # Step 6: Call LLM
         logger.info(f"Calling LLM ({llm_client.provider}) for IAM explanation")
         llm_response = await llm_client.generate_explanation(sanitized_payload)
 
-        # Step 6: Build response
-        response = IAMAnalyzeResponse(
-            summary=summary,
+        # Step 7: Adapt to AnalyzeResponse format (match frontend adaptation)
+        from app.models import PlanSummary
+        adapted_summary = PlanSummary(
+            total_changes=summary_dict['total_statements'],
+            creates=summary_dict['allow_statements'],
+            updates=0,
+            deletes=summary_dict['deny_statements'],
+            replaces=0,
+            terraform_version=f"IAM Policy v{summary_dict['policy_version']}"
+        )
+
+        response = AnalyzeResponse(
+            summary=adapted_summary,
+            diff_skeleton=[],  # IAM has no resource changes
             risk_findings=risk_findings,
             explanation=llm_response["explanation"],
             pr_comment=llm_response["pr_comment"],
+            plan_hash=policy_hash,
             cached=False,
-            resource_hash_map=iam_analyzer.get_resource_hash_map()
+            analyzer_type='iam'
         )
 
-        logger.info(f"IAM analysis complete. Found {len(risk_findings)} risks.")
+        # Step 8: Save to session store
+        user_ip = request.client.host if request.client else "unknown"
+        user_agent = request.headers.get("user-agent", "unknown")
+
+        session_id = await session_store.save(
+            response,
+            user_ip=user_ip,
+            user_agent=user_agent
+        )
+        response.session_id = session_id
+
+        logger.info(f"IAM analysis complete. Found {len(risk_findings)} risks. Session ID: {session_id}")
         return response
 
     except HTTPException:

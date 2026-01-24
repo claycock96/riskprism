@@ -3,7 +3,7 @@
 Owner: Chris
 Audience: DevOps / Cloud Engineering team
 Status: MVP Implemented (v1.0)
-Last Updated: 2026-01-24
+Last Updated: 2026-01-24 (Multi-Analyzer Update)
 
 ---
 
@@ -15,10 +15,10 @@ Terraform plans are hard to review quickly and consistently across a multi-accou
 - Produce consistent review notes for PRs / change boards
 
 We want a web app that:
-1) Ingests a Terraform plan (preferably JSON),
-2) Generates a deterministic risk assessment (“risk gate”),
-3) Produces a plain-English explanation using Bedrock,
-4) Ensures no sensitive data is sent to Bedrock via sanitization/minimization.
+1) Ingests a Terraform plan or IAM Policy JSON,
+2) Generates a deterministic risk assessment using pluggable analyzer engines,
+3) Produces a context-aware plain-English explanation using AI (Bedrock/Anthropic),
+4) Ensures no sensitive data (ARNs, Account IDs, secrets) is sent to AI via hashing and minimization.
 
 ---
 
@@ -27,22 +27,21 @@ We want a web app that:
 ### ✅ Completed
 
 **Backend (Python FastAPI)**
-- Terraform plan JSON parser with recursive attribute extraction
-- **14 reproduction-ready security rules** in risk engine
-- **SQLAlchemy + SQLite persistence layer** for session storage
-- **Audit Logging (Paper Trail)**: Tracks IP and User-Agent per analysis
-- **Shared Access Code Authentication** via secure headers
-- AWS Bedrock (Claude 3.5 Sonnet) & Anthropic API integrations
-- Resource address hashing (SHA-256) for privacy
-- Sensitive key filtering during parsing
+- **Multi-Analyzer Architecture**: Modular `BaseAnalyzer` framework supporting pluggable engines.
+- **Terraform Analyzer**: Plan JSON parser with recursive attribute extraction and hashing.
+- **IAM Policy Analyzer**: Normalizes policy statements and hashes ARNs/Account IDs for privacy.
+- **24+ security rules** (14 Terraform, 10+ IAM) in high-concurrency risk engine.
+- **SQLAlchemy + SQLite persistence layer** for session storage and SHA-256 fingerprinting.
+- **Audit Logging (Paper Trail)**: Tracks IP and User-Agent per analysis.
+- **Shared Access Code Authentication** via secure headers.
+- AWS Bedrock (Claude 3.5 Sonnet) & Anthropic API integrations with context-aware prompts.
 
 **Frontend (Next.js 14 + TypeScript)**
-- **Entry Gate**: Secure team access code prompt
-- **History Browser**: Chronological list of past analyses
-- **Visual Diff Highlighting**: Side-by-side attribute changes (Old vs New)
-- Interactive hover tooltips and expandable evidence sections
-- Frontend-only resource mapping (hash → readable names)
-- Responsive design with Tailwind CSS and premium aesthetics
+- **Analyzer Switcher**: Tabbed interface to toggle between Terraform and IAM modes.
+- **Full Dark Mode Support**: Modern dark/light theme integration across all components.
+- **Revamped Resource Diff**: Table-based visualization of attribute changes with old/new values.
+- **Visual Risk Dashboard**: Context-aware summary stats (e.g., Allow/Deny for IAM).
+- Frontend-only resource mapping (hash → readable names) preserved across analyzers.
 
 **Infrastructure & Deployment**
 - Docker Compose with **persistent volume bind-mounts**
@@ -116,13 +115,14 @@ Implementation:
 - **Key Feature**: Frontend-only hash-to-name mapping (privacy + readability)
 
 **API Backend (Python FastAPI)**
-- `POST /analyze` endpoint accepts plan JSON
-- Parses plan JSON with sanitization
-- Runs 9 security risk rules
-- Builds sanitized payload for LLM
-- Calls AWS Bedrock or Anthropic API
-- Returns structured analysis response
-- Mock mode fallback for development
+- `POST /analyze/terraform`: Dedicated endpoint for plan analysis (with `/analyze` alias).
+- `POST /analyze/iam`: New dedicated endpoint for IAM Policy analysis.
+- Shared logic via `BaseAnalyzer` abstraction:
+  - `parse()`: Validation and normalization.
+  - `analyze()`: Deterministic rule execution.
+  - `sanitize_for_llm()`: Privacy extraction.
+  - `generate_summary()`: Context-aware statistics.
+- Returns structured analysis response with hashed identifying information.
 
 **Persistent Storage Layer**
 - SQLite database (`sessions.db`) stores sanitized analysis results

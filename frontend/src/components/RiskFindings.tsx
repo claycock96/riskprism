@@ -69,15 +69,15 @@ export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarra
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">Security Findings</h3>
-        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Security Findings</h3>
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded">
           Source of Truth: Deterministic Rule Engine
         </span>
       </div>
 
       {enhancedRisks && (
-        <div className="mb-10 pb-8 border-b border-gray-100">
-          <div className="flex items-center text-blue-800 font-bold mb-4 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+        <div className="mb-10 pb-8 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center text-blue-800 dark:text-blue-300 font-bold mb-4 bg-blue-50/50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
@@ -88,19 +88,19 @@ export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarra
               remarkPlugins={[remarkGfm]}
               components={{
                 h3: ({ node, ...props }) => (
-                  <div className="mt-8 mb-4 first:mt-0 pt-4 first:pt-0 border-t first:border-t-0 border-gray-100">
-                    <h3 className="text-sm font-bold text-gray-900 flex items-center" {...props} />
+                  <div className="mt-8 mb-4 first:mt-0 pt-4 first:pt-0 border-t first:border-t-0 border-gray-100 dark:border-gray-700">
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center" {...props} />
                   </div>
                 ),
                 p: ({ node, ...props }) => (
-                  <p className="text-sm text-gray-700 leading-relaxed mb-3" {...props} />
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-3" {...props} />
                 ),
                 strong: ({ node, ...props }) => {
                   const text = props.children?.toString() || ''
                   const isLabel = ['Risk:', 'Why This Matters:', 'Attack Scenario:', 'Impact:'].includes(text)
                   return (
                     <strong
-                      className={isLabel ? "text-blue-800 font-bold block mb-1 text-xs uppercase tracking-tight" : "text-gray-900 font-semibold"}
+                      className={isLabel ? "text-blue-800 dark:text-blue-300 font-bold block mb-1 text-xs uppercase tracking-tight" : "text-gray-900 dark:text-white font-semibold"}
                       {...props}
                     />
                   )
@@ -118,28 +118,28 @@ export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarra
       <div className="space-y-6">
         {sortedSeverities.map((severity) => (
           <div key={severity}>
-            <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center px-1">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center px-1">
               <span className="mr-2">{getSeverityIcon(severity)}</span>
               {severity.charAt(0).toUpperCase() + severity.slice(1)} Severity
-              <span className="ml-2 text-gray-500">({groupedFindings[severity].length})</span>
+              <span className="ml-2 text-gray-500 dark:text-gray-400">({groupedFindings[severity].length})</span>
             </h4>
 
             <div className="space-y-4">
               {groupedFindings[severity].map((finding, idx) => (
                 <div
                   key={idx}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-white"
+                  className="border border-gray-200 dark:border-slate-600 rounded-lg p-4 hover:shadow-md transition-shadow bg-white dark:bg-slate-800"
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <h5 className="text-base font-medium text-gray-900">{finding.title}</h5>
+                    <h5 className="text-base font-medium text-gray-900 dark:text-white">{finding.title}</h5>
                     <span className={getSeverityBadge(finding.severity)}>
                       {finding.severity.toUpperCase()}
                     </span>
                   </div>
 
-                  <div className="text-sm text-gray-600 mb-3">
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     <span className="font-medium">Resource:</span>{' '}
-                    <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">
+                    <code className="bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-xs">
                       {finding.resource_type}
                     </code>
                     {' / '}
@@ -160,11 +160,11 @@ export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarra
                   {finding.evidence && Object.keys(finding.evidence).length > 0 && (
                     <div className="mb-3">
                       <details className="group">
-                        <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800 font-medium">
+                        <summary className="cursor-pointer text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
                           View Evidence
                         </summary>
-                        <div className="mt-2 bg-gray-50 rounded p-3">
-                          <pre className="text-xs text-gray-700 overflow-x-auto">
+                        <div className="mt-2 bg-gray-50 dark:bg-slate-700 rounded p-3">
+                          <pre className="text-xs text-gray-700 dark:text-gray-300 overflow-x-auto">
                             {JSON.stringify(finding.evidence, null, 2)}
                           </pre>
                         </div>
@@ -173,8 +173,8 @@ export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarra
                   )}
 
                   {finding.recommendation && (
-                    <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-3">
-                      <p className="text-sm text-blue-900">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-500 p-3 mb-3">
+                      <p className="text-sm text-blue-900 dark:text-blue-300">
                         <span className="font-medium">Recommendation:</span> {finding.recommendation}
                       </p>
                     </div>
@@ -183,16 +183,16 @@ export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarra
                   {finding.suggested_fix && (
                     <div className="mt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Suggested Fix (HCL)</span>
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Suggested Fix (HCL)</span>
                         <button
                           onClick={() => navigator.clipboard.writeText(finding.suggested_fix || '')}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center"
                         >
                           <span className="mr-1">📋</span> Copy Fix
                         </button>
                       </div>
-                      <div className="bg-gray-900 rounded-md p-3 overflow-x-auto border border-gray-800">
-                        <pre className="text-xs text-green-400 font-mono">
+                      <div className="bg-gray-900 dark:bg-slate-950 rounded-md p-3 overflow-x-auto border border-gray-800 dark:border-slate-700">
+                        <pre className="text-xs text-green-400 dark:text-green-300 font-mono">
                           {finding.suggested_fix}
                         </pre>
                       </div>

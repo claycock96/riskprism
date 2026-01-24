@@ -40,7 +40,7 @@ export default function Results({ results, onReset }: ResultsProps) {
       {/* Header with Reset Button */}
       <div className="flex items-center justify-between print:hidden">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {isIAM ? '🔐 IAM Policy Analysis' : '🔍 Terraform Plan Analysis'}
+          {isIAM ? 'IAM Policy Analysis' : 'Terraform Plan Analysis'}
         </h2>
         <div className="flex gap-3">
           <button
@@ -54,9 +54,9 @@ export default function Results({ results, onReset }: ResultsProps) {
           </button>
           <button
             onClick={handleShare}
-            className={`px-4 py-2 text-sm font-medium rounded-md border transition-all flex items-center ${copied ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600'}`}
+            className={`px-4 py-2 text-sm font-medium rounded-md border transition-all flex items-center ${copied ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
           >
-            <svg className={`w-4 h-4 mr-2 ${copied ? 'text-green-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-4 h-4 mr-2 ${copied ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {copied ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               ) : (
@@ -67,7 +67,7 @@ export default function Results({ results, onReset }: ResultsProps) {
           </button>
           <button
             onClick={onReset}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             {isIAM ? 'Analyze Another Policy' : 'Analyze Another Plan'}
           </button>

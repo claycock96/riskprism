@@ -53,24 +53,24 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
 
   return (
     <div className="card">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">
+      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
         Upload Terraform Plan
       </h2>
-      <p className="text-sm text-gray-600 mb-6">
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
         Analyze a Terraform plan JSON for security risks and get AI-powered explanations.
-        Generate your plan with: <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">terraform show -json tfplan &gt; plan.json</code>
+        Generate your plan with: <code className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-xs">terraform show -json tfplan &gt; plan.json</code>
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Method Selection */}
-        <div className="flex space-x-4 border-b border-gray-200">
+        <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700">
           <button
             type="button"
             onClick={() => setMethod('paste')}
             className={`pb-2 px-1 font-medium text-sm border-b-2 transition-colors ${
               method === 'paste'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
             Paste JSON
@@ -80,8 +80,8 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
             onClick={() => setMethod('upload')}
             className={`pb-2 px-1 font-medium text-sm border-b-2 transition-colors ${
               method === 'upload'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
             Upload File
@@ -91,7 +91,7 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
         {/* Input Area */}
         {method === 'paste' ? (
           <div>
-            <label htmlFor="json-input" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="json-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Terraform Plan JSON
             </label>
             <textarea
@@ -100,18 +100,18 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
               value={jsonText}
               onChange={(e) => setJsonText(e.target.value)}
               placeholder='Paste your Terraform plan JSON here...'
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
             />
           </div>
         ) : (
           <div>
-            <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Select File
             </label>
             <div className="flex items-center justify-center w-full">
               <label
                 htmlFor="file-upload"
-                className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <svg
@@ -128,15 +128,15 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
                     />
                   </svg>
                   {file ? (
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                       <span className="font-semibold">{file.name}</span>
                     </p>
                   ) : (
                     <>
-                      <p className="mb-2 text-sm text-gray-500">
+                      <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">JSON file (max 10MB)</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">JSON file (max 10MB)</p>
                     </>
                   )}
                 </div>
@@ -154,10 +154,10 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
 
         {/* Validation Error */}
         {validationError && (
-          <div className="rounded-md bg-red-50 p-4">
+          <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">
             <div className="flex">
               <div className="ml-3">
-                <p className="text-sm text-red-800">{validationError}</p>
+                <p className="text-sm text-red-800 dark:text-red-300">{validationError}</p>
               </div>
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
       </form>
 
       {/* Info Box */}
-      <div className="mt-6 rounded-md bg-blue-50 p-4 border border-blue-200">
+      <div className="mt-6 rounded-md bg-blue-50 dark:bg-blue-900/20 p-4 border border-blue-200 dark:border-blue-800">
         <div className="flex">
           <div className="flex-shrink-0">
             <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
@@ -182,11 +182,11 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
             </svg>
           </div>
           <div className="ml-3 flex-1">
-            <h4 className="text-sm font-semibold text-blue-800 mb-1">Security-First Design</h4>
-            <p className="text-sm text-blue-700 mb-2">
+            <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-1">Security-First Design</h4>
+            <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
               Your Terraform plan data is processed with security as the top priority.
             </p>
-            <ul className="text-xs text-blue-600 space-y-1 list-disc list-inside">
+            <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1 list-disc list-inside">
               <li><strong>Resource names are hashed</strong> before being sent to AI (e.g., "my-prod-db" → "res_abc123")</li>
               <li><strong>Only metadata is shared</strong>: resource types, actions, and attribute paths</li>
               <li><strong>Sensitive values are stripped</strong>: passwords, tokens, keys, secrets never leave your browser</li>

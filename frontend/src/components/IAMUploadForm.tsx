@@ -52,84 +52,79 @@ export default function IAMUploadForm({ onAnalyze, disabled = false }: IAMUpload
 
     return (
         <div className="card">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-                    🔐 IAM Policy Analyzer
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    IAM Policy Analyzer
                 </h2>
                 <button
                     type="button"
                     onClick={loadExample}
-                    className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400"
+                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                 >
                     Load Example
                 </button>
             </div>
 
-            <p className="text-slate-600 dark:text-slate-300 mb-6">
-                Paste your AWS IAM policy JSON below. We&apos;ll analyze it for security risks
-                using 10+ deterministic rules covering privilege escalation, wildcard permissions,
-                and missing conditions.
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                Analyze an AWS IAM policy JSON for security risks and get AI-powered explanations.
+                Paste your policy below or click &quot;Load Example&quot; to try it out.
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                    <label htmlFor="policy" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    <label htmlFor="policy" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         IAM Policy JSON
                     </label>
                     <textarea
                         id="policy"
+                        rows={12}
                         value={policyText}
                         onChange={(e) => setPolicyText(e.target.value)}
-                        placeholder={`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::my-bucket/*"
-    }
-  ]
-}`}
-                        className="w-full h-64 font-mono text-sm p-4 
-                       border border-slate-300 dark:border-slate-600 
-                       rounded-lg bg-slate-50 dark:bg-slate-800
-                       text-slate-800 dark:text-slate-200
-                       focus:ring-2 focus:ring-purple-500 focus:border-transparent
-                       resize-none"
+                        placeholder='Paste your IAM policy JSON here...'
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
                         disabled={disabled}
                     />
                 </div>
 
                 {error && (
-                    <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
-                        <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+                    <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">
+                        <div className="flex">
+                            <div className="ml-3">
+                                <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 <button
                     type="submit"
                     disabled={disabled || !policyText.trim()}
-                    className={`
-            w-full py-4 px-6 rounded-lg font-semibold text-white
-            transition-all duration-200
-            ${disabled || !policyText.trim()
-                            ? 'bg-slate-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg hover:shadow-xl'
-                        }
-          `}
+                    className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
-                    {disabled ? 'Analyzing...' : 'Analyze IAM Policy'}
+                    {disabled ? 'Analyzing...' : 'Analyze Policy'}
                 </button>
             </form>
 
-            <div className="mt-6 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <h3 className="font-semibold text-purple-800 dark:text-purple-300 mb-2">
-                    🛡️ Privacy-First Analysis
-                </h3>
-                <p className="text-sm text-purple-700 dark:text-purple-400">
-                    Your ARNs, account IDs, and resource names are hashed before any analysis.
-                    The backend and AI never see your raw identifiers.
-                </p>
+            <div className="mt-6 rounded-md bg-blue-50 dark:bg-blue-900/20 p-4 border border-blue-200 dark:border-blue-800">
+                <div className="flex">
+                    <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <div className="ml-3 flex-1">
+                        <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-1">Privacy-First Analysis</h4>
+                        <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
+                            Your IAM policy data is processed with security as the top priority.
+                        </p>
+                        <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1 list-disc list-inside">
+                            <li><strong>ARNs and account IDs are hashed</strong> before being sent to AI</li>
+                            <li><strong>Only metadata is shared</strong>: actions, resources, and conditions structure</li>
+                            <li><strong>Sensitive values are stripped</strong>: credentials and secrets never leave your browser</li>
+                            <li><strong>Frontend shows real names</strong> by mapping hashes back to your original identifiers</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     )

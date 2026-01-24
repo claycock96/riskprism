@@ -368,3 +368,28 @@ class IAMPolicyAnalyzer(BaseAnalyzer):
     def get_resource_hash_map(self) -> Dict[str, str]:
         """Get hash -> original ARN mapping."""
         return self._arn_hash_map
+
+    def calculate_policy_hash(self) -> str:
+        """
+        Calculate a deterministic hash of the policy for caching.
+        Uses normalized statement structure (actions, resources, effect).
+        """
+        # Create a stable representation of the policy
+        policy_repr = []
+        for stmt in self._statements:
+            stmt_repr = {
+                'Effect': stmt['Effect'],
+                'Action': sorted(stmt['Action']),
+                'NotAction': sorted(stmt['NotAction']),
+                'Resource': sorted(stmt['Resource']),
+                'NotResource': sorted(stmt['NotResource']),
+                'HasConditions': bool(stmt.get('Condition')),
+            }
+            policy_repr.append(stmt_repr)
+
+        # Sort statements for deterministic ordering
+        policy_repr.sort(key=lambda x: json.dumps(x, sort_keys=True))
+
+        # Calculate hash
+        policy_str = json.dumps(policy_repr, sort_keys=True)
+        return hashlib.sha256(policy_str.encode('utf-8')).hexdigest()

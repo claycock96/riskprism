@@ -84,27 +84,16 @@ export default function Home() {
         throw new Error(errorData.detail || `HTTP ${response.status}`)
       }
 
-      const data = await response.json()
+      const data: AnalyzeResponse = await response.json()
       clearTimeout(aiStageTimer)
 
-      // For IAM, we don't have session persistence yet, so show inline
-      // Transform IAM response to match AnalyzeResponse structure for Results component
-      const adaptedResults: AnalyzeResponse = {
-        summary: {
-          total_changes: data.summary.total_statements,
-          creates: data.summary.allow_statements,
-          updates: 0,
-          deletes: data.summary.deny_statements,
-          replaces: 0,
-          terraform_version: `IAM Policy v${data.summary.policy_version}`,
-        },
-        diff_skeleton: [],
-        risk_findings: data.risk_findings,
-        explanation: data.explanation,
-        pr_comment: data.pr_comment,
-        cached: data.cached,
+      // IAM now has session persistence - redirect to results page
+      if (data.session_id) {
+        router.push(`/results/${data.session_id}`)
+      } else {
+        // Fallback: show results inline if no session_id
+        setResults(data)
       }
-      setResults(adaptedResults)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze IAM policy')
     } finally {
@@ -134,7 +123,6 @@ export default function Home() {
   }
 
   const labels = getLoadingLabels()
-  const accentColor = analyzerType === 'terraform' ? 'blue' : 'purple'
 
   return (
     <div className="space-y-8">
@@ -160,26 +148,26 @@ export default function Home() {
       {loading && (
         <div className="card">
           <div className="flex flex-col items-center justify-center py-12">
-            <div className={`inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-${accentColor}-600 border-r-transparent mb-8`}></div>
+            <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-8"></div>
 
             <div className="w-full max-w-xs space-y-4">
-              <div className={`flex items-center gap-3 transition-opacity ${loadingStage === 'parsing' ? `opacity-100 font-bold text-${accentColor}-600` : 'opacity-50'}`}>
+              <div className={`flex items-center gap-3 transition-opacity ${loadingStage === 'parsing' ? 'opacity-100 font-bold text-blue-600' : 'opacity-50'}`}>
                 {loadingStage !== 'parsing' && <span className="text-green-500">✓</span>}
-                {loadingStage === 'parsing' && <span className={`w-4 h-4 border-2 border-${accentColor}-600 border-t-transparent animate-spin rounded-full`}></span>}
-                <p className="text-sm">{labels.step1}</p>
+                {loadingStage === 'parsing' && <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span>}
+                <p className="text-sm text-gray-700 dark:text-gray-300">{labels.step1}</p>
               </div>
 
-              <div className={`flex items-center gap-3 transition-opacity ${(loadingStage === 'rules' || loadingStage === 'ai') ? 'opacity-100' : 'opacity-30'} ${loadingStage === 'rules' ? `font-bold text-${accentColor}-600` : ''}`}>
+              <div className={`flex items-center gap-3 transition-opacity ${(loadingStage === 'rules' || loadingStage === 'ai') ? 'opacity-100' : 'opacity-30'} ${loadingStage === 'rules' ? 'font-bold text-blue-600' : ''}`}>
                 {loadingStage === 'ai' ? <span className="text-green-500">✓</span> : <span className="w-4"></span>}
-                {loadingStage === 'rules' && <span className={`w-4 h-4 border-2 border-${accentColor}-600 border-t-transparent animate-spin rounded-full`}></span>}
-                <p className="text-sm">{labels.step2}</p>
+                {loadingStage === 'rules' && <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span>}
+                <p className="text-sm text-gray-700 dark:text-gray-300">{labels.step2}</p>
               </div>
 
-              <div className={`flex items-center gap-3 transition-opacity ${loadingStage === 'ai' ? `opacity-100 font-bold text-${accentColor}-600` : 'opacity-30'}`}>
-                {loadingStage === 'ai' ? <span className={`w-4 h-4 border-2 border-${accentColor}-600 border-t-transparent animate-spin rounded-full`}></span> : <span className="w-4"></span>}
+              <div className={`flex items-center gap-3 transition-opacity ${loadingStage === 'ai' ? 'opacity-100 font-bold text-blue-600' : 'opacity-30'}`}>
+                {loadingStage === 'ai' ? <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span> : <span className="w-4"></span>}
                 <div>
-                  <p className="text-sm">{labels.step3}</p>
-                  {loadingStage === 'ai' && <p className="text-[10px] text-gray-500 mt-1 animate-pulse italic">Thinking hard about your {analyzerType === 'terraform' ? 'infrastructure' : 'permissions'}...</p>}
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{labels.step3}</p>
+                  {loadingStage === 'ai' && <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 animate-pulse italic">Thinking hard about your {analyzerType === 'terraform' ? 'infrastructure' : 'permissions'}...</p>}
                 </div>
               </div>
             </div>

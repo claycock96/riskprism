@@ -144,7 +144,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
             {isIAM ? 'Policy Summary' : 'Plan Summary'}
           </h3>
           {cached && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700">
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-900 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-600">
               <span className="mr-1">⚡</span> CACHED
             </span>
           )}
@@ -162,7 +162,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
       {/* IAM Policy Stats */}
       {isIAM && (
         <div className="mb-6">
-          <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">Policy Structure</h4>
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-200 mb-3">Policy Structure</h4>
           <div className="grid grid-cols-3 gap-4">
             {iamStats.map((stat) => (
               <div
@@ -173,7 +173,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
                   <span className="text-xl mr-2">{stat.icon}</span>
                   <div>
                     <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
-                    <div className="text-sm text-gray-600 dark:text-slate-400">{stat.label}</div>
+                    <div className="text-sm font-medium text-gray-800 dark:text-slate-300">{stat.label}</div>
                   </div>
                 </div>
               </div>
@@ -185,7 +185,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
       {/* Terraform Resource Changes */}
       {!isIAM && (
         <div className="mb-6">
-          <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">Resource Changes</h4>
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-200 mb-3">Resource Changes</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {terraformStats.map((stat) => (
               <div
@@ -195,7 +195,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
                 onMouseLeave={() => setHoveredStat(null)}
               >
                 <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
-                <div className="text-sm text-gray-600 dark:text-slate-400 mt-1">{stat.label}</div>
+                <div className="text-sm font-medium text-gray-800 dark:text-slate-300 mt-1">{stat.label}</div>
 
                 {/* Tooltip */}
                 {hoveredStat === stat.label && stat.resources.length > 0 && (
@@ -238,7 +238,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
 
       {/* Security Findings */}
       <div>
-        <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">Security Findings</h4>
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-200 mb-3">Security Findings</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {riskStats.map((stat) => (
             <div key={stat.label} className={`${stat.bgColor} rounded-lg p-4`}>
@@ -246,7 +246,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
                 <span className="text-xl mr-2">{stat.icon}</span>
                 <div>
                   <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
-                  <div className="text-sm text-gray-600 dark:text-slate-400">{stat.label}</div>
+                  <div className="text-sm font-medium text-gray-800 dark:text-slate-300">{stat.label}</div>
                 </div>
               </div>
             </div>

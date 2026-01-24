@@ -45,7 +45,7 @@ export default function AnalyzerSwitcher({
                     className={`
             px-6 py-3 rounded-lg font-medium text-sm transition-all duration-200
             ${activeAnalyzer === 'iam'
-                            ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-md'
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-md'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                         }
             ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
