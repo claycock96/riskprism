@@ -50,6 +50,12 @@ The backend leverages an asynchronous **SQLite** layer and SHA-256 fingerprintin
 - **Cost Skip**: If a fingerprint match is found, the backend skips the LLM call entirely and serves the cached reasoning in milliseconds.
 - **Audit Trails**: Even on a cache hit, a new Session ID is generated to maintain a traceable paper trail of who requested the analysis.
 
+### Layer 3.5: Concurrency Hardening (Scale)
+To handle 20+ simultaneous users without blocking:
+- **Async LLM Calls**: We use `AsyncAnthropic` and thread-pooled Bedrock clients so waiting for AI (30s+) never freezes the API.
+- **SQLite WAL Mode**: We use Write-Ahead Logging to allow simultaneous reads and writes, preventing "Database is locked" errors under load.
+- **Multi-Worker Node**: The container runs 4 Uvicorn workers to parse complex plans in parallel.
+
 ### Layer 4: AI Interpretation (LLM)
 The LLM (Claude 3.5 Sonnet) receives only the **Sanitized Payload**. It uses its reasoning capabilities to turn raw security findings into a cohesive narrative and PR comment.
 

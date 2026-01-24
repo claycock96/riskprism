@@ -5,12 +5,13 @@ A security-focused web application that analyzes Terraform plans for risks, gene
 ## Features
 
 - **Deterministic Risk Engine**: 14+ production-ready security rules covering IAM, networking, encryption, and more
+- **High-Concurrency Engine**: Non-blocking Async AI and SQLite WAL mode support 20+ simultaneous users ⚡
 - **Analysis Caching**: SHA-256 Plan Fingerprinting allows skipping redundant AI calls—saves 90%+ in latency and API costs 💸
 - **Safe-by-Design**: Safe feature extraction and hashing—sensitive values and resource names never leave your env
 - **Persistent History**: Full reports are saved in a localized SQLite database and survive container restarts
 - **Consolidated UI Reasoning**: AI insights are merged directly into rule engine findings for a single "Source of Truth"
 - **Audit Logging**: Traceable "Paper Trail" recording requester IP and User-Agent for every analysis session
-- **Visual Diff Highlighting**: See exactly what changed with side-by-side attribute diffs
+- **Polished UI/UX**: Multi-step progress indicators, deep-link navigation, and "Share Results" quick actions 🎨
 - **Interactive UI**: Custom "Risk Card" rendering for deep exploit analysis and attack scenarios
 - **PR-Ready Output**: Copy-paste formatted Markdown comments for simplified Pull Request reviews
 - **CLI Tool**: Dev-focused `tf-analyze` script for instant feedback in the terminal with CI/CD support

@@ -12,6 +12,13 @@ from app.llm_client import LLMClient
 from app.models import AnalyzeRequest, AnalyzeResponse
 from app.session_store import session_store
 from app.database import init_db
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
+# Rate Limiter Setup
+limiter = Limiter(key_func=get_remote_address)
 
 # Configure logging
 logging.basicConfig(
@@ -29,14 +36,18 @@ INTERNAL_ACCESS_CODE = os.getenv("INTERNAL_ACCESS_CODE")
 async def verify_internal_code(x_internal_code: Optional[str] = Header(None)):
     """
     Dependency to verify the internal access code.
-    If INTERNAL_ACCESS_CODE is not set, access is granted (for local dev convenience).
-    In production, this should always be set.
+    SECURITY: Fail-Secure. If provided code doesn't match, or if
+    INTERNAL_ACCESS_CODE is not configured on the server, deny access.
     """
     if not INTERNAL_ACCESS_CODE:
-        return True
+        logger.critical("SECURITY ALERT: INTERNAL_ACCESS_CODE is not set! Refusing all requests.")
+        raise HTTPException(
+            status_code=503,
+            detail="Server configuration error: Authentication not configured. Contact administrator."
+        )
     
     if x_internal_code != INTERNAL_ACCESS_CODE:
-        logger.warning("Unauthorised access attempt with invalid or missing internal code")
+        logger.warning(f"Unauthorized access attempt. Provided code: {x_internal_code}")
         raise HTTPException(
             status_code=401, 
             detail="Invalid or missing access code. Please enter the team access code."
@@ -56,8 +67,14 @@ app = FastAPI(
     title="Terraform Plan Analyzer",
     description="Analyzes Terraform plans for security risks and generates explanations",
     version="0.1.0",
+    version="0.1.0",
     lifespan=lifespan
 )
+
+# Initialize Rate Limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS configuration for local development
 app.add_middleware(
@@ -125,11 +142,17 @@ async def health():
 
 
 @app.post("/analyze", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
+@limiter.limit("10/minute")
 async def analyze_plan(request: Request, analyze_request: AnalyzeRequest):
     """
     Analyze a Terraform plan JSON for security risks and generate explanation.
     """
     try:
+        # Security: payload size check (approx 10MB limit)
+        content_length = request.headers.get('content-length')
+        if content_length and int(content_length) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Payload too large. Maximum size is 10MB.")
+
         logger.info(f"Received plan analysis request from {request.client.host}")
 
         # Step 1: Parse Terraform plan JSON
