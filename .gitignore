@@ -28,6 +28,7 @@ Thumbs.db
 .coverage
 htmlcov/
 .tox/
+test_response.json
 
 # Environment variables
 .env
