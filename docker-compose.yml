@@ -1,0 +1,64 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # LLM Provider Selection
+      # Options: "anthropic" (direct Claude API) or "bedrock" (AWS Bedrock)
+      - LLM_PROVIDER=${LLM_PROVIDER:-bedrock}
+
+      # Anthropic API (if using LLM_PROVIDER=anthropic)
+      # Get your API key from: https://console.anthropic.com/
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
+
+      # AWS Bedrock (if using LLM_PROVIDER=bedrock)
+      # Option 1: Mount credentials file (recommended for local dev)
+      # Option 2: Use environment variables (see below)
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_REGION=us-east-1
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-}
+      # Uncomment to use environment variables instead of mounted credentials:
+      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+    volumes:
+      # Mount AWS credentials from host (for local development)
+      - ~/.aws:/home/appuser/.aws:ro
+      # Mount source code for hot reload during development
+      - ./backend/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - terraform-analyzer
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    networks:
+      - terraform-analyzer
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+networks:
+  terraform-analyzer:
+    driver: bridge
