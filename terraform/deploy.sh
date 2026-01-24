@@ -45,6 +45,14 @@ INSTANCE_TYPE=${INSTANCE_TYPE:-"t4g.small"}
 read -p "SSH Key Name [default: terraform-analyzer-key]: " KEY_NAME
 KEY_NAME=${KEY_NAME:-"terraform-analyzer-key"}
 
+# Generate or Prompt for Internal Access Code
+read -p "Internal Access Code [press Enter to auto-generate]: " AUTH_CODE
+if [ -z "$AUTH_CODE" ]; then
+    AUTH_CODE=$(openssl rand -hex 16)
+    echo -e "${YELLOW}Generated Access Code: $AUTH_CODE${NC}"
+    echo "SAVE THIS CODE! You will need it to access the application."
+fi
+
 echo -e "\n${GREEN}Configuration Summary:${NC}"
 echo "  VPC ID: $VPC_ID"
 echo "  Subnet ID: $SUBNET_ID"
@@ -52,6 +60,7 @@ echo "  Git Repo: $GIT_REPO"
 echo "  Git Branch: $GIT_BRANCH"
 echo "  Instance Type: $INSTANCE_TYPE"
 echo "  Key Name: $KEY_NAME"
+echo "  Auth Code: [HIDDEN] (Length: ${#AUTH_CODE})"
 echo ""
 
 read -p "Proceed with deployment? (yes/no): " CONFIRM
@@ -73,6 +82,7 @@ terraform plan \
     -var="git_branch=$GIT_BRANCH" \
     -var="instance_type=$INSTANCE_TYPE" \
     -var="key_name=$KEY_NAME" \
+    -var="internal_access_code=$AUTH_CODE" \
     -out=tfplan
 
 # Review plan

@@ -62,6 +62,9 @@ AWS_REGION=us-east-1
 
 # Frontend Configuration
 NEXT_PUBLIC_API_URL=http://backend:8000
+
+# Security
+INTERNAL_ACCESS_CODE=${internal_access_code}
 EOF
 
 # Set permissions

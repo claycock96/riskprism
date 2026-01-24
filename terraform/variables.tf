@@ -9,9 +9,15 @@ variable "subnet_id" {
 }
 
 variable "key_name" {
-  description = "Name for the SSH key pair"
+  description = "Name of the SSH key pair"
   type        = string
   default     = "terraform-analyzer-key"
+}
+
+variable "internal_access_code" {
+  description = "Security access code for the application"
+  type        = string
+  sensitive   = true
 }
 
 variable "instance_type" {
