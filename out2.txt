@@ -1,6 +1,0 @@
-[1m🔍 Analyzing Terraform Plan...[0m
-
-Reading plan JSON file...
-Analyzing with security rules...
-[0;31mError: API returned status 500[0m
-Detail: Analysis failed: name 'json' is not defined
