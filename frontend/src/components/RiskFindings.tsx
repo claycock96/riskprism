@@ -112,10 +112,29 @@ export default function RiskFindings({ findings, diffSkeleton = [] }: RiskFindin
                   )}
 
                   {finding.recommendation && (
-                    <div className="bg-blue-50 border-l-4 border-blue-400 p-3">
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-3">
                       <p className="text-sm text-blue-900">
                         <span className="font-medium">Recommendation:</span> {finding.recommendation}
                       </p>
+                    </div>
+                  )}
+
+                  {finding.suggested_fix && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Suggested Fix (HCL)</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(finding.suggested_fix || '')}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center"
+                        >
+                          <span className="mr-1">📋</span> Copy Fix
+                        </button>
+                      </div>
+                      <div className="bg-gray-900 rounded-md p-3 overflow-x-auto border border-gray-800">
+                        <pre className="text-xs text-green-400 font-mono">
+                          {finding.suggested_fix}
+                        </pre>
+                      </div>
                     </div>
                   )}
                 </div>

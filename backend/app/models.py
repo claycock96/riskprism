@@ -40,6 +40,7 @@ class RiskFinding(BaseModel):
     resource_ref: str = Field(..., description="Hashed reference to resource address")
     evidence: Dict[str, Any] = Field(..., description="Safe evidence tokens (no raw values)")
     recommendation: str = Field(..., description="Remediation guidance")
+    suggested_fix: Optional[str] = Field(None, description="Terraform (HCL) snippet to fix the issue")
     changed_paths: Optional[List[str]] = Field(None, description="Attribute paths that changed")
 
 

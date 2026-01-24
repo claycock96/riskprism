@@ -33,6 +33,7 @@ def test_rule_iam_passrole_wildcard(risk_engine):
     finding = next(f for f in findings if f.risk_id == "IAM-PASSROLE-BROAD")
     assert finding.severity == Severity.CRITICAL
     assert finding.evidence["resource_wildcard"] is True
+    assert finding.suggested_fix is not None
 
 def test_rule_sts_assumerole_wildcard(risk_engine):
     policy = {

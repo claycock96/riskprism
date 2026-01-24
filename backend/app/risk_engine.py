@@ -163,6 +163,7 @@ class RiskEngine:
                 "critical_port_exposed": any(p in critical_ports for p in exposed_ports)
             },
             recommendation="Restrict CIDR blocks to known IP ranges. For SSH/RDP, use AWS Systems Manager Session Manager or a bastion host. For databases, ensure they are in private subnets with security groups allowing only application tier access.",
+            suggested_fix="ingress {\n  from_port   = 443\n  to_port     = 443\n  protocol    = \"tcp\"\n  cidr_blocks = [\"10.0.0.0/16\"] # Restricted range\n}",
             changed_paths=None
         )
 
@@ -200,6 +201,7 @@ class RiskEngine:
                         "public_read_risk": True
                     },
                     recommendation="Remove Principal: '*' from bucket policy or add strict conditions. Enable S3 Block Public Access settings. Use CloudFront with OAC for public content distribution.",
+                    suggested_fix="statement {\n  principals {\n    type        = \"AWS\"\n    identifiers = [\"arn:aws:iam::123456789012:role/MyRole\"]\n  }\n  actions = [\"s3:GetObject\"]\n}",
                     changed_paths=None
                 )
 
@@ -218,6 +220,7 @@ class RiskEngine:
                         "public_write": acl == 'public-read-write'
                     },
                     recommendation="Change ACL to 'private'. Enable S3 Block Public Access. Use bucket policies with specific principals for controlled sharing.",
+                    suggested_fix="acl = \"private\"",
                     changed_paths=None
                 )
 
@@ -251,6 +254,7 @@ class RiskEngine:
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"pab_removed": True},
                 recommendation="Keep S3 Block Public Access enabled unless explicitly required for public content. Document exceptions.",
+                suggested_fix="resource \"aws_s3_bucket_public_access_block\" \"example\" {\n  bucket = aws_s3_bucket.example.id\n\n  block_public_acls       = true\n  block_public_policy     = true\n  ignore_public_acls      = true\n  restrict_public_buckets = true\n}",
                 changed_paths=None
             )
 
@@ -273,6 +277,7 @@ class RiskEngine:
                         "disabled_settings": disabled_settings
                     },
                     recommendation="Enable all Block Public Access settings unless public access is explicitly required and approved.",
+                    suggested_fix="block_public_acls       = true\nblock_public_policy     = true\nignore_public_acls      = true\nrestrict_public_buckets = true",
                     changed_paths=None
                 )
 
@@ -303,6 +308,7 @@ class RiskEngine:
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"sse_removed": True},
                 recommendation="Enable server-side encryption. Use SSE-KMS for sensitive data. Consider compliance requirements.",
+                suggested_fix="resource \"aws_s3_bucket_server_side_encryption_configuration\" \"example\" {\n  bucket = aws_s3_bucket.example.id\n\n  rule {\n    apply_server_side_encryption_by_default {\n      sse_algorithm = \"AES256\"\n    }\n  }\n}",
                 changed_paths=None
             )
 
@@ -333,6 +339,7 @@ class RiskEngine:
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"publicly_accessible": True},
                 recommendation="Set publicly_accessible to false. Place RDS in private subnets. Use VPC security groups to restrict access to application tier only.",
+                suggested_fix="publicly_accessible = false",
                 changed_paths=None
             )
 
@@ -363,6 +370,7 @@ class RiskEngine:
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"encryption_disabled": True},
                 recommendation="Enable storage_encrypted. Note: existing instances require snapshot, restore to new encrypted instance. Plan for maintenance window.",
+                suggested_fix="storage_encrypted = true",
                 changed_paths=None
             )
 
@@ -407,6 +415,7 @@ class RiskEngine:
                     "admin_risk": True
                 },
                 recommendation="Scope IAM actions and resources to least privilege. Avoid Action: '*' and Resource: '*'. Use separate break-glass admin roles with MFA and monitoring.",
+                suggested_fix="statement {\n  actions = [\"s3:ListBucket\", \"s3:GetObject\"]\n  resources = [\"arn:aws:s3:::my-bucket\", \"arn:aws:s3:::my-bucket/*\"]\n}",
                 changed_paths=None
             )
 
@@ -474,6 +483,7 @@ class RiskEngine:
                         "action": change_data.get('actions', [])
                     },
                     recommendation=f"Review the need for {policy_name}. This policy grants excessive permissions. Consider using a custom policy with least-privilege permissions or a more restrictive AWS managed policy. For break-glass admin access, use a separate role with MFA and strict approval workflows.",
+                    suggested_fix="# Replace with a more restrictive managed policy or a custom policy\npolicy_arn = \"arn:aws:iam::aws:policy/ReadOnlyAccess\"",
                     changed_paths=None
                 )
 
@@ -506,6 +516,7 @@ class RiskEngine:
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"cloudtrail_removed": True},
                 recommendation="Maintain CloudTrail logging for audit and compliance. Use organization trails for multi-account coverage.",
+                suggested_fix="# Do not delete aws_cloudtrail resources in production",
                 changed_paths=None
             )
 
@@ -519,6 +530,7 @@ class RiskEngine:
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"cloudtrail_disabled": True},
                 recommendation="Enable CloudTrail logging. Ensure logs are protected with encryption and access controls.",
+                suggested_fix="enable_logging = true",
                 changed_paths=None
             )
 
@@ -551,6 +563,7 @@ class RiskEngine:
                     resource_ref=self._hash_resource_ref(change.get('address', '')),
                     evidence={"action": "iam:PassRole", "resource_wildcard": True},
                     recommendation="Restrict iam:PassRole to specific role ARNs. Wildcard PassRole allows an attacker to pass ANY role to a service, leading to full privilege escalation.",
+                    suggested_fix="statement {\n  actions   = [\"iam:PassRole\"]\n  resources = [\"arn:aws:iam::123456789012:role/SpecificServiceRole\"]\n}",
                     changed_paths=None
                 )
         return None
@@ -582,6 +595,7 @@ class RiskEngine:
                     resource_ref=self._hash_resource_ref(change.get('address', '')),
                     evidence={"action": "sts:AssumeRole", "resource_wildcard": True},
                     recommendation="Restrict sts:AssumeRole to specific role ARNs. Broad AssumeRole permissions increase the blast radius of compromised credentials.",
+                    suggested_fix="statement {\n  actions   = [\"sts:AssumeRole\"]\n  resources = [\"arn:aws:iam::123456789012:role/SpecificCrossAccountRole\"]\n}",
                     changed_paths=None
                 )
         return None
@@ -619,6 +633,7 @@ class RiskEngine:
                     "cidr_block": after.get('cidr_block') or after.get('ipv6_cidr_block')
                 },
                 recommendation="Restrict Network ACL rules to specific protocols and CIDR blocks. Prefer Security Groups for stateful traffic control.",
+                suggested_fix="rule_action = \"allow\"\nprotocol    = \"tcp\"\nfrom_port   = 443\nto_port     = 443\ncidr_block  = \"10.0.0.0/16\"",
                 changed_paths=None
             )
         return None
@@ -652,6 +667,7 @@ class RiskEngine:
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"internal": False},
                 recommendation="Ensure the load balancer is intended to be public. Use WAF and restrictive Security Groups to protect public endpoints.",
+                suggested_fix="internal = true",
                 changed_paths=None
             )
         return None
@@ -681,6 +697,7 @@ class RiskEngine:
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"encrypted": False},
                 recommendation="Enable EBS encryption to protect data at rest. You can enable account-level default encryption in the AWS region.",
+                suggested_fix="encrypted = true",
                 changed_paths=None
             )
         return None

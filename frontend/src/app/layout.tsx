@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import './globals.css'
+import SystemStats from '@/components/SystemStats'
 
 export const metadata: Metadata = {
   title: 'Terraform Plan Analyzer',
@@ -17,9 +19,11 @@ export default function RootLayout({
         <div className="min-h-screen">
           <header className="bg-white border-b border-gray-200 shadow-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-              <h1 className="text-2xl font-bold text-gray-900">
-                Terraform Plan Analyzer
-              </h1>
+              <Link href="/">
+                <h1 className="text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors inline-block cursor-pointer">
+                  Terraform Plan Analyzer
+                </h1>
+              </Link>
               <p className="text-sm text-gray-600 mt-1">
                 Security-focused analysis with AI-powered explanations
               </p>
@@ -27,6 +31,7 @@ export default function RootLayout({
           </header>
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {children}
+            <SystemStats />
           </main>
         </div>
       </body>

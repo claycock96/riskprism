@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 import logging
+from datetime import datetime
 
 from app.parser import TerraformPlanParser
 from app.risk_engine import RiskEngine
@@ -16,6 +17,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Track application start time
+START_TIME = datetime.utcnow()
 
 app = FastAPI(
     title="Terraform Plan Analyzer",
@@ -242,10 +246,13 @@ async def get_results(session_id: str):
 @app.get("/sessions/stats")
 async def get_session_stats():
     """
-    Get session storage statistics.
+    Get session storage statistics and application uptime.
     Useful for monitoring and debugging.
     """
-    return session_store.stats()
+    stats = session_store.stats()
+    uptime = datetime.utcnow() - START_TIME
+    stats["uptime_seconds"] = int(uptime.total_seconds())
+    return stats
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ export interface RiskFinding {
   resource_ref: string
   evidence: Record<string, any>
   recommendation: string
+  suggested_fix?: string
 }
 
 export interface BedrockExplanation {
@@ -38,4 +39,12 @@ export interface AnalyzeResponse {
   explanation: BedrockExplanation
   pr_comment: string
   session_id?: string
+}
+
+export interface SessionStats {
+  total_sessions: number
+  max_size: number
+  ttl_hours: number
+  oldest_age_hours: number
+  uptime_seconds: number
 }
