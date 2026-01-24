@@ -138,13 +138,22 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [] }: Su
 
               {/* Tooltip */}
               {hoveredStat === stat.label && stat.resources.length > 0 && (
-                <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64">
+                <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-80">
                   <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg">
                     <div className="font-semibold mb-1">{stat.label}:</div>
                     <div className="max-h-48 overflow-y-auto">
                       {stat.resources.slice(0, 20).map((resource, idx) => (
-                        <div key={idx} className="py-0.5 font-mono text-xs truncate">
-                          {resource.resource_type}
+                        <div key={idx} className="py-0.5">
+                          <div className="font-mono text-xs">
+                            {resource.resource_address ? (
+                              <span>
+                                <span className="text-gray-400">{resource.resource_type}</span>
+                                <span className="text-white"> ({resource.resource_address.split('.').slice(1).join('.')})</span>
+                              </span>
+                            ) : (
+                              <span className="text-white">{resource.resource_type}</span>
+                            )}
+                          </div>
                         </div>
                       ))}
                       {stat.resources.length > 20 && (
