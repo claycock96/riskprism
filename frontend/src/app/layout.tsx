@@ -30,14 +30,6 @@ export default function RootLayout({
                   Security-focused analysis with AI-powered explanations
                 </p>
               </div>
-              <nav>
-                <Link
-                  href="/history"
-                  className="text-sm font-medium text-gray-500 hover:text-blue-600 transition-colors flex items-center"
-                >
-                  <span className="mr-1.5">🕒</span> History
-                </Link>
-              </nav>
             </div>
           </header>
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

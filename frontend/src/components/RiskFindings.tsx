@@ -142,9 +142,18 @@ export default function RiskFindings({ findings, diffSkeleton = [], aiRisksNarra
                       {finding.resource_type}
                     </code>
                     {' / '}
-                    <code className="bg-blue-50 px-1.5 py-0.5 rounded text-xs text-blue-700 font-medium">
+                    <a
+                      href={`#resource-${finding.resource_ref}`}
+                      className="bg-blue-50 px-1.5 py-0.5 rounded text-xs text-blue-700 font-medium hover:bg-blue-100 hover:text-blue-900 transition-colors cursor-pointer border border-blue-100"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const el = document.getElementById(`resource-${finding.resource_ref}`);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                    >
                       {getResourceName(finding.resource_ref, finding.resource_type)}
-                    </code>
+                      <span className="ml-1 opacity-50">#</span>
+                    </a>
                   </div>
 
                   {finding.evidence && Object.keys(finding.evidence).length > 0 && (

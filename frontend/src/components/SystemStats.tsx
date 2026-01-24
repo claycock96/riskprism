@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { SessionStats } from '@/lib/types'
 
 import { authenticatedFetch } from '@/lib/api'
@@ -43,10 +44,10 @@ export default function SystemStats() {
         <footer className="mt-12 py-8 border-t border-gray-100">
             <div className="flex flex-col items-center gap-4">
                 <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-500">
-                    <div className="flex items-center">
-                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                    <Link href="/history" className="flex items-center hover:text-gray-700 transition-colors group">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2 group-hover:animate-pulse"></span>
                         System Online
-                    </div>
+                    </Link>
                     <div>
                         <span className="font-medium text-gray-700">{stats.total_sessions}</span> / {stats.max_size} Reports Stored
                     </div>

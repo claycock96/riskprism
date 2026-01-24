@@ -1,0 +1,68 @@
+{
+    "terraform_version": "1.5.0",
+    "format_version": "1.2",
+    "resource_changes": [
+        {
+            "address": "aws_iam_policy.dangerous_passrole",
+            "type": "aws_iam_policy",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"iam:PassRole\",\"Resource\":\"*\"}]}"
+                }
+            }
+        },
+        {
+            "address": "aws_iam_policy.broad_assume",
+            "type": "aws_iam_policy",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"sts:AssumeRole\",\"Resource\":\"*\"}]}"
+                }
+            }
+        },
+        {
+            "address": "aws_network_acl_rule.insecure",
+            "type": "aws_network_acl_rule",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "rule_action": "allow",
+                    "protocol": "-1",
+                    "cidr_block": "0.0.0.0/0"
+                }
+            }
+        },
+        {
+            "address": "aws_lb.public_alb",
+            "type": "aws_lb",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "internal": false
+                }
+            }
+        },
+        {
+            "address": "aws_ebs_volume.encrypted_v2",
+            "type": "aws_ebs_volume",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "encrypted": false
+                }
+            }
+        }
+    ]
+}

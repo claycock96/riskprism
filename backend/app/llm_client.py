@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import asyncio
 from typing import Dict, Any, Optional
 import boto3
 from botocore.config import Config
@@ -56,11 +57,11 @@ class LLMClient:
     def _init_anthropic(self):
         """Initialize Anthropic API client"""
         try:
-            import anthropic
+            from anthropic import AsyncAnthropic
 
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if api_key:
-                self.anthropic_client = anthropic.Anthropic(api_key=api_key)
+                self.anthropic_client = AsyncAnthropic(api_key=api_key)
                 self.credentials_valid = True
                 logger.info(f"Anthropic client initialized (model: {self.anthropic_model})")
             else:
@@ -216,7 +217,7 @@ Format your response as JSON with this structure:
         try:
             logger.info(f"Calling Anthropic API (model: {self.anthropic_model})")
 
-            message = self.anthropic_client.messages.create(
+            message = await self.anthropic_client.messages.create(
                 model=self.anthropic_model,
                 max_tokens=4096,
                 temperature=0.3,
@@ -262,7 +263,9 @@ Format your response as JSON with this structure:
 
             logger.info(f"Calling Bedrock model: {self.bedrock_model_id}")
 
-            response = self.client.invoke_model(
+            # Run synchronous Boto3 call in a thread pool to avoid blocking event loop
+            response = await asyncio.to_thread(
+                self.client.invoke_model,
                 modelId=self.bedrock_model_id,
                 body=json.dumps(request_body)
             )

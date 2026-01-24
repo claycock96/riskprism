@@ -1,0 +1,57 @@
+[1m🔍 Analyzing Terraform Plan...[0m
+
+Reading plan JSON file...
+Analyzing with security rules...
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m                  ANALYSIS SUMMARY [1;33m⚡ (Cached Analysis)[0m[0m
+[1m═══════════════════════════════════════════════════════[0m
+
+[1mResource Changes:[0m
+  Total: 5
+  [0;32mCreates:[0m  5
+
+[1mSecurity Findings: [0m7
+  [0;31m[1m🔴 Critical:[0m 3
+  [0;31m🟠 High:[0m     3
+  [1;33m🟡 Medium:[0m   1
+
+[1mHigh Priority Findings:[0m
+[1m───────────────────────────────────────────────────────[0m
+
+[0;31m[1m[CRITICAL] IAM policy contains wildcard permissions[0m
+  Resource: aws_iam_policy
+  → Scope IAM actions and resources to least privilege. Avoid Action: '*' and Resource: '*'. Use separate break-glass admin roles with MFA and monitoring.
+
+[0;31m[1m[CRITICAL] IAM policy allows iam:PassRole on all resources[0m
+  Resource: aws_iam_policy
+  → Restrict iam:PassRole to specific role ARNs. Wildcard PassRole allows an attacker to pass ANY role to a service, leading to full privilege escalation.
+
+[0;31m[1m[CRITICAL] IAM policy contains wildcard permissions[0m
+  Resource: aws_iam_policy
+  → Scope IAM actions and resources to least privilege. Avoid Action: '*' and Resource: '*'. Use separate break-glass admin roles with MFA and monitoring.
+
+[0;31m[HIGH] IAM policy allows sts:AssumeRole on all resources[0m
+  Resource: aws_iam_policy
+  → Restrict sts:AssumeRole to specific role ARNs. Broad AssumeRole permissions increase the blast radius of compromised credentials.
+
+[0;31m[HIGH] Network ACL allows all traffic from any source[0m
+  Resource: aws_network_acl_rule
+  → Restrict Network ACL rules to specific protocols and CIDR blocks. Prefer Security Groups for stateful traffic control.
+
+[0;31m[HIGH] EBS volume encryption is disabled[0m
+  Resource: aws_ebs_volume
+  → Enable EBS encryption to protect data at rest. You can enable account-level default encryption in the AWS region.
+
+[1mAI Summary:[0m
+[1m───────────────────────────────────────────────────────[0m
+  • This plan creates 5 new AWS resources with NO updates or deletions
+  • CRITICAL: Two IAM policies grant dangerous wildcard permissions including iam:PassRole and sts:AssumeRole on all resources - immediate privilege escalation risks
+  • HIGH: Network ACL rule allows all traffic from the internet, and EBS volume lacks encryption
+  • MEDIUM: Load balancer is internet-facing - verify this is intentional and properly secured
+
+[1m═══════════════════════════════════════════════════════[0m
+[0;31m[1m⚠️  CRITICAL ISSUES FOUND - Review required before apply[0m
+
+📋 Full report: http://localhost:3000/results/ad9f2fb2-69a9-4c04-9b87-9e93fe5d8c9c
+

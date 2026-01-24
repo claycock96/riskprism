@@ -1,5 +1,6 @@
 import os
 import logging
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from .models import Base
 
@@ -10,8 +11,20 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:////app/data/sessions
 
 engine = create_async_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 5.0,  # 5 second busy timeout
+    } if "sqlite" in DATABASE_URL else {}
 )
+
+# SQLite optimization: Enable WAL mode for concurrency
+@event.listens_for(engine.sync_engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if "sqlite" in DATABASE_URL:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
 
 async_session = async_sessionmaker(
     engine, 

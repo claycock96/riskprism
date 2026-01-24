@@ -12,6 +12,7 @@ export default function Home() {
   const router = useRouter()
   const [results, setResults] = useState<AnalyzeResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingStage, setLoadingStage] = useState<'parsing' | 'rules' | 'ai' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handleAnalyze = async (planJson: any) => {
@@ -19,8 +20,15 @@ export default function Home() {
     setError(null)
     setResults(null)
 
+    // Stage 1: Parsing
+    setLoadingStage('parsing')
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+      // Simulate/Transition to Stage 2: Rules (happens fast in backend, but good for UX)
+      setTimeout(() => setLoadingStage('rules'), 800)
+
       const response = await authenticatedFetch(`${apiUrl}/analyze`, {
         method: 'POST',
         headers: {
@@ -29,12 +37,19 @@ export default function Home() {
         body: JSON.stringify({ plan_json: planJson }),
       })
 
+      // If it takes more than 1.5s, it's likely hitting the LLM
+      const aiStageTimer = setTimeout(() => {
+        setLoadingStage('ai')
+      }, 1500)
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
+        clearTimeout(aiStageTimer)
         throw new Error(errorData.detail || `HTTP ${response.status}`)
       }
 
       const data: AnalyzeResponse = await response.json()
+      clearTimeout(aiStageTimer)
 
       // Redirect to shareable results page if session_id is available
       if (data.session_id) {
@@ -47,6 +62,7 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'Failed to analyze plan')
     } finally {
       setLoading(false)
+      setLoadingStage(null)
     }
   }
 
@@ -63,10 +79,29 @@ export default function Home() {
 
       {loading && (
         <div className="card">
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-4"></div>
-              <p className="text-gray-600">Analyzing Terraform plan...</p>
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-8"></div>
+
+            <div className="w-full max-w-xs space-y-4">
+              <div className={`flex items-center gap-3 transition-opacity ${loadingStage === 'parsing' ? 'opacity-100 font-bold text-blue-600' : 'opacity-50'}`}>
+                {loadingStage !== 'parsing' && <span className="text-green-500">✓</span>}
+                {loadingStage === 'parsing' && <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span>}
+                <p className="text-sm">Synthesizing Terraform Plan</p>
+              </div>
+
+              <div className={`flex items-center gap-3 transition-opacity ${(loadingStage === 'rules' || loadingStage === 'ai') ? 'opacity-100' : 'opacity-30'} ${loadingStage === 'rules' ? 'font-bold text-blue-600' : ''}`}>
+                {loadingStage === 'ai' ? <span className="text-green-500">✓</span> : <span className="w-4"></span>}
+                {loadingStage === 'rules' && <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span>}
+                <p className="text-sm">Performing Safety Scan (14+ Rules)</p>
+              </div>
+
+              <div className={`flex items-center gap-3 transition-opacity ${loadingStage === 'ai' ? 'opacity-100 font-bold text-blue-600' : 'opacity-30'}`}>
+                {loadingStage === 'ai' ? <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span> : <span className="w-4"></span>}
+                <div>
+                  <p className="text-sm">Consulting AI Security Expert</p>
+                  {loadingStage === 'ai' && <p className="text-[10px] text-gray-500 mt-1 animate-pulse italic">Thinking hard about your infrastructure...</p>}
+                </div>
+              </div>
             </div>
           </div>
         </div>
