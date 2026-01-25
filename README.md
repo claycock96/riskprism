@@ -1,6 +1,6 @@
-# Terraform Plan Analyzer
+# RiskPrism
 
-A security-focused web application that analyzes Terraform plans and IAM policies for risks, generates plain-English explanations using AI, and produces review-ready PR comments.
+Turn change into clear decisions with AI-powered risk and explanations.
 
 ## Features
 

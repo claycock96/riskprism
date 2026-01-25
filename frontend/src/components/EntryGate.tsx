@@ -46,7 +46,7 @@ export default function EntryGate({ onUnlock }: EntryGateProps) {
                     <div className="text-4xl mb-4">🔐</div>
                     <h2 className="text-2xl font-bold">Team Access Required</h2>
                     <p className="text-blue-100 mt-2 opacity-90">
-                        Please enter the internal access code to use the Terraform Plan Analyzer.
+                        Please enter the internal access code to use RiskPrism.
                     </p>
                 </div>
 

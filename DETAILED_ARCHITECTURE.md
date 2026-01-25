@@ -1,6 +1,6 @@
 # Detailed Architecture: Secure AI Analysis Pipeline
 
-This document provides a deep dive into how the **Terraform Plan Analyzer** processes your data, detects security risks, and leverages AI—all while ensuring your sensitive infrastructure details never leave your environment.
+This document provides a deep dive into how the **RiskPrism** processes your data, detects security risks, and leverages AI—all while ensuring your sensitive infrastructure details never leave your environment.
 
 ## 1. System Overview
 

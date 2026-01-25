@@ -1,5 +1,4 @@
-"""
-Terraform Plan Analyzer
+RiskPrism: Terraform
 
 Implements the BaseAnalyzer interface for Terraform plan JSON analysis.
 Wraps existing parser.py and risk_engine.py functionality.
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class TerraformAnalyzer(BaseAnalyzer):
     """
-    Terraform Plan Analyzer.
+    RiskPrism: Terraform.
     
     Analyzes Terraform plan JSON for security risks using:
     - Deterministic rule engine (14+ rules)

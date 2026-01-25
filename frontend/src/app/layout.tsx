@@ -5,8 +5,8 @@ import SystemStats from '@/components/SystemStats'
 import Gatekeeper from '@/components/Gatekeeper'
 
 export const metadata: Metadata = {
-  title: 'Terraform Plan Analyzer',
-  description: 'Security-focused Terraform plan analysis with AI-powered explanations',
+  title: 'RiskPrism',
+  description: 'Turn change into clear decisions with AI-powered risk and explanations.',
 }
 
 export default function RootLayout({
@@ -23,11 +23,11 @@ export default function RootLayout({
               <div>
                 <Link href="/">
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-block cursor-pointer">
-                    Terraform Plan Analyzer
+                    RiskPrism
                   </h1>
                 </Link>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Security-focused analysis with AI-powered explanations
+                  Turn change into clear decisions with AI-powered risk and explanations.
                 </p>
               </div>
             </div>

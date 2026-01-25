@@ -27,15 +27,19 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-      setTimeout(() => setLoadingStage('rules'), 800)
+      // Transition to rules immediately
+      setLoadingStage('rules')
+
+      // Set timer to switch to 'AI' after 600ms if still loading
+      const aiStageTimer = setTimeout(() => {
+        setLoadingStage('ai')
+      }, 600)
 
       const response = await authenticatedFetch(`${apiUrl}/analyze/terraform`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan_json: planJson }),
       })
-
-      const aiStageTimer = setTimeout(() => setLoadingStage('ai'), 1500)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
@@ -68,15 +72,17 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-      setTimeout(() => setLoadingStage('rules'), 500)
+      setLoadingStage('rules')
+
+      const aiStageTimer = setTimeout(() => {
+        setLoadingStage('ai')
+      }, 500)
 
       const response = await authenticatedFetch(`${apiUrl}/analyze/iam`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ policy }),
       })
-
-      const aiStageTimer = setTimeout(() => setLoadingStage('ai'), 1000)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))

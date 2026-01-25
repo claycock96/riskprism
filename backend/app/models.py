@@ -146,6 +146,7 @@ class AnalysisSession(Base):
     risk_findings_json = Column(Text, nullable=False)
     explanation_json = Column(Text, nullable=False)
     pr_comment = Column(Text, nullable=False)
+    was_cached = Column(String, default="false") # Store as string "true"/"false" for simplicity in SQLite 
     
     # Audit Logging
     user_ip = Column(String, nullable=True)
@@ -165,7 +166,7 @@ class AnalysisSession(Base):
             explanation=BedrockExplanation(**json.loads(self.explanation_json)),
             pr_comment=self.pr_comment,
             session_id=self.session_id,
-            cached=True,
+            cached=(self.was_cached == "true"),
             plan_hash=self.plan_hash
         )
 
@@ -181,6 +182,7 @@ class AnalysisSession(Base):
             risk_findings_json=json.dumps([f.model_dump() for f in response.risk_findings]),
             explanation_json=response.explanation.model_dump_json(),
             pr_comment=response.pr_comment,
+            was_cached="true" if response.cached else "false",
             plan_hash=response.plan_hash,
             user_ip=user_ip,
             user_agent=user_agent,
