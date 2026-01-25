@@ -2,12 +2,12 @@ set -e
 
 # Ensure we are running from the project root (optional for CLI but good for consistency)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Note: tf-analyze doesn't strictly need root cd, but we'll include it for internal consistency
+# Note: riskprism doesn't strictly need root cd, but we'll include it for internal consistency
 # if it ever needs to reference project assets.
 # cd "$SCRIPT_DIR/.."
 
-# tf-analyze - CLI tool for Terraform Plan security analysis
-# Usage: tf-analyze <plan-file> [api-url]
+# riskprism - CLI tool for RiskPrism security analysis
+# Usage: riskprism <plan-file> [api-url]
 
 # Color codes
 RED='\033[0;31m'
@@ -22,22 +22,22 @@ API_URL="${2:-http://localhost:8000}"
 
 # Check if plan file provided
 if [ -z "$1" ]; then
-    echo "Usage: tf-analyze <plan-file> [api-url]"
+    echo "Usage: riskprism <plan-file> [api-url]"
     echo ""
     echo "Examples:"
-    echo "  tf-analyze tfplan                    # Binary plan file"
-    echo "  tf-analyze plan.json                 # JSON plan file"
-    echo "  tf-analyze tfplan http://10.0.1.5:8000  # Use remote API"
+    echo "  riskprism tfplan                    # Binary plan file"
+    echo "  riskprism plan.json                 # JSON plan file"
+    echo "  riskprism tfplan http://10.0.1.5:8000  # Use remote API"
     echo ""
     echo "Workflow (binary plan):"
     echo "  terraform plan -out=tfplan"
-    echo "  tf-analyze tfplan"
+    echo "  riskprism tfplan"
     echo "  terraform apply tfplan"
     echo ""
     echo "Workflow (JSON plan):"
     echo "  terraform plan -out=tfplan"
     echo "  terraform show -json tfplan > plan.json"
-    echo "  tf-analyze plan.json"
+    echo "  riskprism plan.json"
     exit 1
 fi
 
@@ -73,7 +73,7 @@ if ! command -v jq &> /dev/null; then
     fi
 fi
 
-echo -e "${BOLD}🔍 Analyzing Terraform Plan...${NC}\n"
+echo -e "${BOLD}🔍 RiskPrism Analyzing Plan...${NC}\n"
 
 # Check if input is already JSON or a binary plan file
 if jq empty "$PLAN_FILE" 2>/dev/null; then

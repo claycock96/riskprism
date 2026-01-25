@@ -6,8 +6,8 @@ Turn change into clear decisions with AI-powered risk and explanations.
 
 - **🛡️ Dual Analysis Modes**:
   - **Terraform Plan**: Analyzing infrastructure changes (`terraform show -json tfplan`)
-  - **IAM Policy**: Analyzing AWS IAM policies for privilege escalation risks
-- **Deterministic Risk Engine**: 24+ production-ready security rules covering IAM, networking, encryption, and more
+  - **IAM Policy**: Comprehensive security analysis of AWS IAM policies for privilege escalation risks
+- **Deterministic Risk Engine**: 14+ production-ready security rules covering IAM, networking, encryption, and more across Terraform and IAM contexts
 - **High-Concurrency Engine**: Non-blocking Async AI and SQLite WAL mode support 20+ simultaneous users ⚡
 - **Analysis Caching**: SHA-256 Plan Fingerprinting allows skipping redundant AI calls—saves 90%+ in latency and API costs 💸
 - **Safe-by-Design**: Safe feature extraction and hashing—sensitive values and resource names never leave your env
@@ -17,7 +17,7 @@ Turn change into clear decisions with AI-powered risk and explanations.
 - **Polished UI/UX**: Multi-step progress indicators, deep-link navigation, and "Share Results" quick actions 🎨
 - **Interactive UI**: Custom "Risk Card" rendering for deep exploit analysis and attack scenarios
 - **PR-Ready Output**: Copy-paste formatted Markdown comments for simplified Pull Request reviews
-- **CLI Tool**: Dev-focused `tf-analyze` script for instant feedback in the terminal with CI/CD support
+- **CLI Tool**: Dev-focused `riskprism` script for instant feedback in the terminal with CI/CD support
 
 ## Architecture
 
@@ -108,8 +108,9 @@ For developers running Terraform locally, use the included CLI tool for quick an
 
 ```bash
 # Add to your PATH (one-time setup)
-sudo cp tf-analyze /usr/local/bin/
-# Or use directly: ./tf-analyze
+# Add to your PATH (one-time setup)
+sudo cp scripts/riskprism /usr/local/bin/
+# Or use directly: ./scripts/riskprism
 ```
 
 ### Workflow
@@ -119,7 +120,7 @@ sudo cp tf-analyze /usr/local/bin/
 terraform plan -out=tfplan
 
 # 2. Analyze with CLI tool
-tf-analyze tfplan
+riskprism tfplan
 
 # 3. Review output, then apply if safe
 terraform apply tfplan
@@ -128,7 +129,7 @@ terraform apply tfplan
 ### Example Output
 
 ```
-🔍 Analyzing Terraform Plan...
+🔍 RiskPrism Analyzing Plan...
 
 ═══════════════════════════════════════════════════════
                   ANALYSIS SUMMARY ⚡ 
@@ -219,7 +220,7 @@ curl -X POST http://localhost:8000/analyze \
     "top_risks_explained": "...",
     "review_questions": [...]
   },
-  "pr_comment": "## 🔍 Terraform Plan Analysis\n\n..."
+  "pr_comment": "## 🔍 RiskPrism Analysis\n\n..."
 }
 ```
 
@@ -422,7 +423,7 @@ cd terraform
 PRIVATE_IP=$(terraform output -raw instance_private_ip)
 
 # Use CLI with remote API (from within VPN/bastion)
-tf-analyze tfplan http://${PRIVATE_IP}:8000
+riskprism tfplan http://${PRIVATE_IP}:8000
 ```
 
 See [terraform/README.md](terraform/README.md) for detailed deployment instructions.

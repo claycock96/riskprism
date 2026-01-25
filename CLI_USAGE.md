@@ -1,6 +1,6 @@
 # CLI Usage Guide
 
-Quick command-line tool for analyzing Terraform plans during local development.
+Quick command-line tool for analyzing infrastructure and IAM risk during local development.
 
 ## Installation
 
@@ -8,16 +8,16 @@ Quick command-line tool for analyzing Terraform plans during local development.
 
 ```bash
 # From the terraform-webapp directory
-sudo cp tf-analyze /usr/local/bin/
+sudo cp scripts/riskprism /usr/local/bin/
 # Or create a symlink
-sudo ln -s $(pwd)/tf-analyze /usr/local/bin/tf-analyze
+sudo ln -s $(pwd)/scripts/riskprism /usr/local/bin/riskprism
 ```
 
 ### Option 2: Use Directly
 
 ```bash
 # From the terraform-webapp directory
-./tf-analyze path/to/tfplan
+./scripts/riskprism path/to/tfplan
 ```
 
 ### Prerequisites
@@ -41,7 +41,7 @@ cd your-terraform-project
 terraform plan -out=tfplan
 
 # 3. Analyze the plan
-tf-analyze tfplan
+riskprism tfplan
 
 # 4. Review output, then apply if safe
 terraform apply tfplan
@@ -53,11 +53,11 @@ If your analyzer is deployed on AWS or another server:
 
 ```bash
 # Analyze using remote API
-tf-analyze tfplan http://10.0.1.50:8000
+riskprism tfplan http://10.0.1.50:8000
 
 # Or set environment variable
-export TF_ANALYZE_API=http://10.0.1.50:8000
-tf-analyze tfplan $TF_ANALYZE_API
+export RISKPRISM_API=http://10.0.1.50:8000
+riskprism tfplan $RISKPRISM_API
 ```
 
 ### With Access Code Protection
@@ -66,7 +66,7 @@ If the API is protected (standard for internal deployments), provide the access 
 
 ```bash
 export INTERNAL_ACCESS_CODE=your-team-password
-tf-analyze tfplan
+riskprism tfplan
 ```
 
 ## Output
@@ -74,7 +74,7 @@ tf-analyze tfplan
 The tool provides a color-coded terminal summary:
 
 ```
-🔍 Analyzing Terraform Plan...
+🔍 RiskPrism Analyzing Plan...
 
 ═══════════════════════════════════════════════════════
                   ANALYSIS SUMMARY
@@ -113,7 +113,7 @@ AI Summary:
 📋 Full report: http://localhost:3000/results/res_abc123def4
 ```
 
-The report link now leads to a persistent results page featuring **Visual Diff Highlighting** (Old vs New values) and can be shared with your team.
+The report link leads to a persistent results page featuring **Visual Diff Highlighting** (Old vs New values) and can be shared with your team via **RiskPrism**.
 
 ## Exit Codes
 
@@ -129,7 +129,7 @@ The tool uses exit codes to integrate with scripts and CI/CD:
 #!/bin/bash
 terraform plan -out=tfplan
 
-if tf-analyze tfplan; then
+if riskprism tfplan; then
     echo "Analysis passed, applying..."
     terraform apply tfplan
 else
@@ -163,7 +163,7 @@ if git diff --cached --name-only | grep -q '\.tf$'; then
     terraform plan -out=.tf-analyze-plan 2>&1 | grep -v "Refreshing state"
 
     if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        tf-analyze .tf-analyze-plan
+        riskprism .tf-analyze-plan
         RESULT=$?
         rm -f .tf-analyze-plan
 
@@ -191,14 +191,14 @@ plan:
 	terraform plan -out=tfplan
 
 analyze: plan
-	tf-analyze tfplan
+	riskprism tfplan
 
 apply: analyze
 	terraform apply tfplan
 
 safe-apply:
 	@terraform plan -out=tfplan
-	@if tf-analyze tfplan; then \
+	@if riskprism tfplan; then \
 		terraform apply tfplan; \
 	else \
 		echo "Analysis failed - review findings before applying"; \
@@ -271,7 +271,7 @@ terraform show -json tfplan | \
 ### Save Report to File
 
 ```bash
-tf-analyze tfplan | tee analysis-report.txt
+riskprism tfplan | tee analysis-report.txt
 ```
 
 ### Filter by Severity
@@ -295,7 +295,7 @@ export INTERNAL_ACCESS_CODE=your-secret-code
 ### Usage
 
 ```bash
-./scripts/tf-analyze <plan-file> [api-url]
+./scripts/riskprism <plan-file> [api-url]
 ```
 
 #### Examples
@@ -303,7 +303,7 @@ export INTERNAL_ACCESS_CODE=your-secret-code
 1.  **Analyze a binary plan file**:
     ```bash
     terraform plan -out=tfplan
-    ./scripts/tf-analyze tfplan
+    ./scripts/riskprism tfplan
     ```
 
 2.  **Analyze a JSON plan file**:
@@ -332,7 +332,7 @@ export INTERNAL_ACCESS_CODE=your-secret-code
 
 3. **Combine with terraform fmt**:
    ```bash
-   terraform fmt && terraform plan -out=tfplan && ./scripts/tf-analyze tfplan
+   terraform fmt && terraform plan -out=tfplan && ./scripts/riskprism tfplan
    ```
 
 4. **Team adoption**: Add to team documentation and onboarding
