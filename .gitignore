@@ -36,6 +36,8 @@ test_response.json
 
 # Docker
 *.log
+docker-compose.override.yml
+.docker-compose.override.yml.tmp
 
 # Terraform
 *.tfstate

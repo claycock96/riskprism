@@ -1,3 +1,4 @@
+"""
 RiskPrism: Terraform
 
 Implements the BaseAnalyzer interface for Terraform plan JSON analysis.

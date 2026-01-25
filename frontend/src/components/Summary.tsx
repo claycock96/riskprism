@@ -167,7 +167,9 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
             {iamStats.map((stat) => (
               <div
                 key={stat.label}
-                className={`${stat.bgColor} rounded-lg p-4`}
+                className={`${stat.bgColor} rounded-lg p-4 relative ${stat.value > 0 ? 'cursor-help' : ''}`}
+                onMouseEnter={() => stat.value > 0 && setHoveredStat(`iam-${stat.label}`)}
+                onMouseLeave={() => setHoveredStat(null)}
               >
                 <div className="flex items-center">
                   <span className="text-xl mr-2">{stat.icon}</span>
@@ -176,6 +178,24 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
                     <div className="text-sm font-medium text-gray-800 dark:text-slate-300">{stat.label}</div>
                   </div>
                 </div>
+
+                {/* IAM Tooltip (Mock or based on summary if we had it) */}
+                {hoveredStat === `iam-${stat.label}` && (
+                  <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg">
+                      <div className="font-semibold mb-1">{stat.label} Details:</div>
+                      <div className="text-gray-300 italic">
+                        {stat.label === 'Statements' && 'Breakdown of all policy statements.'}
+                        {stat.label === 'Allow' && 'Statements with Effect: Allow.'}
+                        {stat.label === 'Deny' && 'Statements with Effect: Deny.'}
+                      </div>
+                      {/* Arrow */}
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

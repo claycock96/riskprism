@@ -23,11 +23,6 @@ services:
       # Security Configuration
       - INTERNAL_ACCESS_CODE=${INTERNAL_ACCESS_CODE:-}
     volumes:
-      # Mount AWS credentials from host (for local development)
-      - ~/.aws:/home/appuser/.aws:ro
-      # Mount source code for hot reload during development
-      - ./backend/app:/app/app
-      - ./tests:/app/tests
       # Persistent SQLite database
       - ./backend/data:/app/data
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4

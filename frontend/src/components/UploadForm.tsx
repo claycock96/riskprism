@@ -38,6 +38,53 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
     }
   }
 
+  const loadExample = () => {
+    const examplePlan = {
+      "format_version": "0.1",
+      "resource_changes": [
+        {
+          "address": "aws_security_group.allow_all",
+          "mode": "managed",
+          "type": "aws_security_group",
+          "name": "allow_all",
+          "change": {
+            "actions": ["create"],
+            "before": null,
+            "after": {
+              "description": "Allow all inbound traffic",
+              "ingress": [
+                {
+                  "cidr_blocks": ["0.0.0.0/0"],
+                  "from_port": 0,
+                  "protocol": "-1",
+                  "to_port": 0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "address": "aws_db_instance.unencrypted",
+          "mode": "managed",
+          "type": "aws_db_instance",
+          "name": "unencrypted",
+          "change": {
+            "actions": ["create"],
+            "before": null,
+            "after": {
+              "instance_class": "db.t3.micro",
+              "storage_encrypted": false,
+              "publicly_accessible": true
+            }
+          }
+        }
+      ]
+    }
+    setMethod('paste')
+    setJsonText(JSON.stringify(examplePlan, null, 2))
+    setValidationError(null)
+  }
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
@@ -46,6 +93,7 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
         return
       }
       setFile(selectedFile)
+      setMethod('upload')
       setValidationError(null)
     }
   }
@@ -54,9 +102,18 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
 
   return (
     <div className="card">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-        RiskPrism: Terraform
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          RiskPrism: Terraform
+        </h2>
+        <button
+          type="button"
+          onClick={loadExample}
+          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+        >
+          Load Example
+        </button>
+      </div>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
         Analyze a Terraform plan JSON for security risks and get AI-powered explanations.
         Generate your plan with: <code className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-xs">terraform show -json tfplan &gt; plan.json</code>
