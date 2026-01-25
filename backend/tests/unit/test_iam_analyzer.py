@@ -18,21 +18,42 @@ def iam_analyzer():
 
 @pytest.fixture
 def admin_policy():
-    fixture_path = Path(__file__).parent / "fixtures" / "iam_admin_policy.json"
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "iam" / "iam_admin_policy.json"
     with open(fixture_path) as f:
         return json.load(f)
 
 
 @pytest.fixture
 def passrole_policy():
-    fixture_path = Path(__file__).parent / "fixtures" / "iam_passrole_dangerous.json"
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "iam" / "iam_passrole_dangerous.json"
     with open(fixture_path) as f:
         return json.load(f)
 
 
 @pytest.fixture
 def least_privilege_policy():
-    fixture_path = Path(__file__).parent / "fixtures" / "iam_least_privilege.json"
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "iam" / "iam_least_privilege.json"
+    with open(fixture_path) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def kms_unrestricted_policy():
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "iam" / "iam_kms_unrestricted.json"
+    with open(fixture_path) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def not_action_policy():
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "iam" / "iam_not_action.json"
+    with open(fixture_path) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def s3_public_policy():
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "iam" / "iam_s3_public.json"
     with open(fixture_path) as f:
         return json.load(f)
 
@@ -99,7 +120,37 @@ def test_least_privilege_minimal_findings(iam_analyzer, least_privilege_policy):
     findings = iam_analyzer.analyze(parsed)
     
     critical_findings = [f for f in findings if f.severity == Severity.CRITICAL]
-    assert len(critical_findings) == 0, f"Least privilege policy should have no CRITICAL findings, got: {critical_findings}"
+    assert len(critical_findings) == 0
+
+
+def test_rule_kms_unrestricted(iam_analyzer, kms_unrestricted_policy):
+    """Verify IAM-KMS-DECRYPT-BROAD triggers."""
+    parsed = iam_analyzer.parse(kms_unrestricted_policy)
+    findings = iam_analyzer.analyze(parsed)
+    
+    kms_findings = [f for f in findings if f.risk_id == "IAM-KMS-DECRYPT-BROAD"]
+    assert len(kms_findings) >= 1
+    assert kms_findings[0].severity == Severity.HIGH
+
+
+def test_rule_not_action(iam_analyzer, not_action_policy):
+    """Verify IAM-NOTACTION-USAGE triggers."""
+    parsed = iam_analyzer.parse(not_action_policy)
+    findings = iam_analyzer.analyze(parsed)
+    
+    na_findings = [f for f in findings if f.risk_id == "IAM-NOTACTION-USAGE"]
+    assert len(na_findings) >= 1
+    assert na_findings[0].severity == Severity.MEDIUM
+
+
+def test_rule_s3_public(iam_analyzer, s3_public_policy):
+    """Verify IAM-S3-PUBLIC-ACCESS triggers."""
+    parsed = iam_analyzer.parse(s3_public_policy)
+    findings = iam_analyzer.analyze(parsed)
+    
+    s3_findings = [f for f in findings if f.risk_id == "IAM-S3-PUBLIC-ACCESS"]
+    assert len(s3_findings) >= 1
+    assert s3_findings[0].severity == Severity.HIGH
 
 
 def test_summary_generation(iam_analyzer, passrole_policy):

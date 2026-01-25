@@ -37,8 +37,9 @@ RUN useradd -m -u 1000 appuser && \
 COPY --from=builder /root/.local /home/appuser/.local
 ENV PATH="/home/appuser/.local/bin:$PATH"
 
-# Copy application code with correct ownership
-COPY --chown=appuser:appuser app/ ./app/
+# Copy application code, tests, and configuration
+COPY --chown=appuser:appuser . .
+RUN ls -la /app/tests/unit/
 
 USER appuser
 
