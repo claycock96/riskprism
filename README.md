@@ -94,21 +94,10 @@ Without credentials, the backend runs in mock mode - all risk detection works no
 
 ```bash
 # Run automated tests
-./test_api.sh
+./scripts/test.sh
 
 # Or test manually
 curl http://localhost:8000/health
-```
-
-### Available Scripts
-
-```bash
-./start.sh      # Start all services
-./stop.sh       # Stop all services
-./logs.sh       # View logs (optional: ./logs.sh backend)
-./test_api.sh   # Test the API with sample plan
-./rebuild.sh    # Rebuild containers (optional: ./rebuild.sh backend)
-./shell.sh      # Open shell in container (optional: ./shell.sh backend)
 ```
 
 ## CLI Tool for Local Development

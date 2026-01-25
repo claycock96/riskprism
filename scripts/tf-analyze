@@ -1,5 +1,10 @@
-#!/bin/bash
 set -e
+
+# Ensure we are running from the project root (optional for CLI but good for consistency)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Note: tf-analyze doesn't strictly need root cd, but we'll include it for internal consistency
+# if it ever needs to reference project assets.
+# cd "$SCRIPT_DIR/.."
 
 # tf-analyze - CLI tool for Terraform Plan security analysis
 # Usage: tf-analyze <plan-file> [api-url]

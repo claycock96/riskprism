@@ -285,23 +285,54 @@ terraform show -json tfplan | \
   jq '.risk_findings[] | select(.severity=="critical")'
 ```
 
+### Setup
+
+Ensure you have mapped your `INTERNAL_ACCESS_CODE` if applicable:
+```bash
+export INTERNAL_ACCESS_CODE=your-secret-code
+```
+
+### Usage
+
+```bash
+./scripts/tf-analyze <plan-file> [api-url]
+```
+
+#### Examples
+
+1.  **Analyze a binary plan file**:
+    ```bash
+    terraform plan -out=tfplan
+    ./scripts/tf-analyze tfplan
+    ```
+
+2.  **Analyze a JSON plan file**:
+    ```bash
+    ./scripts/tf-analyze plan.json
+    ```
+
+3.  **Point to a remote API**:
+    ```bash
+    ./scripts/tf-analyze tfplan http://prod-analyzer:8000
+    ```
+
 ## Tips
 
 1. **Run before every apply**: Make it a habit
    ```bash
    alias tf='terraform'
    alias tfa='terraform apply'
-   alias tfp='terraform plan -out=tfplan && tf-analyze tfplan'
+   alias tfp='terraform plan -out=tfplan && ./scripts/tf-analyze tfplan'
    ```
 
 2. **Use with watch for live feedback**:
    ```bash
-   watch -n 5 'terraform plan -out=tfplan && tf-analyze tfplan'
+   watch -n 5 'terraform plan -out=tfplan && ./scripts/tf-analyze tfplan'
    ```
 
 3. **Combine with terraform fmt**:
    ```bash
-   terraform fmt && terraform plan -out=tfplan && tf-analyze tfplan
+   terraform fmt && terraform plan -out=tfplan && ./scripts/tf-analyze tfplan
    ```
 
 4. **Team adoption**: Add to team documentation and onboarding

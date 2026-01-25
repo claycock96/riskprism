@@ -1,8 +1,12 @@
 #!/bin/bash
-
+# scripts/logs.sh
 # View logs from all services
-# Usage: ./logs.sh [service_name]
-# Example: ./logs.sh backend
+
+set -e
+
+# Ensure we are running from the project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
 
 if [ -z "$1" ]; then
     echo "📋 Viewing logs from all services (Ctrl+C to exit)..."
