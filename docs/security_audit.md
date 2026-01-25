@@ -34,11 +34,17 @@
 - **Constraint**: These are "Ghost" vulnerabilities in the Debian 12 base image with **no available fix** from the vendor yet.
 - **Action**: Added `apt-get upgrade` to the build process to ensure we pick up patches as soon as they are released.
 
+## Security Hardening (Rule Engine) 🛡️
+- **Expansion**: Radical upgrade of the deterministic risk engine from 14 to **65+ security checks**.
+- **Coverage**: Added deep-inspection for IAM privilege escalation, cross-account trust boundaries, and destructive infrastructure controls.
+- **Validation**: All new rules are covered by automated unit tests and representative attack fixtures.
+
 ## Verification
 To see these results yourself:
 ```bash
 trivy image --severity HIGH,CRITICAL backend:local
 trivy image --severity HIGH,CRITICAL frontend:local
+./scripts/test.sh --no-cli
 ```
 > [!IMPORTANT]
 > The remaining backend findings are currently "unfixable" without changing the core framework (FastAPI) or the base operating system (Debian).

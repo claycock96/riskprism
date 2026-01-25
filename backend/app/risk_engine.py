@@ -835,7 +835,8 @@ class RiskEngine:
                         resource_type=resource_type,
                         resource_ref=self._hash_resource_ref(change.get('address', '')),
                         evidence={"cidr": cidr, "mask": mask, "ports": [from_port, to_port]},
-                        recommendation="Restrict ingress to more specific CIDR ranges, ideally /32 or your organization's VPN/Office range."
+                        recommendation="Restrict ingress to more specific CIDR ranges, ideally /32 or your organization's VPN/Office range.",
+                        suggested_fix="cidr_blocks = [\"203.0.113.45/32\"] # Specific IP"
                     )
 
                 # Case 2: 0.0.0.0/0 to risky port
@@ -847,7 +848,8 @@ class RiskEngine:
                         resource_type=resource_type,
                         resource_ref=self._hash_resource_ref(change.get('address', '')),
                         evidence={"cidr": cidr, "risky_port": True, "ports": [from_port, to_port]},
-                        recommendation="Restrict access to risky ports (e.g., development/admin UIs) to internal ranges only."
+                        recommendation="Restrict access to risky ports (e.g., development/admin UIs) to internal ranges only.",
+                        suggested_fix="cidr_blocks = [\"10.0.0.0/16\"] # Internal range only"
                     )
         return None
 
@@ -879,7 +881,8 @@ class RiskEngine:
                     resource_type='aws_network_acl_rule',
                     resource_ref=self._hash_resource_ref(change.get('address', '')),
                     evidence={"cidr": cidr, "range": f"{from_port}-{to_port}"},
-                    recommendation="Limit NACL rules to return traffic for required services only. Do not blindly open the entire ephemeral range to the world."
+                    recommendation="Limit NACL rules to return traffic for required services only. Do not blindly open the entire ephemeral range to the world.",
+                    suggested_fix="from_port  = 1024\nto_port    = 65535\ncidr_block = \"10.0.0.0/16\" # Restricted internal range"
                 )
         return None
 
@@ -942,7 +945,8 @@ class RiskEngine:
                 resource_type='aws_route',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"vpc_peering_id": after.get('vpc_peering_connection_id'), "destination": dest},
-                recommendation="Use specific CIDR routes for VPC peering to minimize the reachable surface between VPCs."
+                recommendation="Use specific CIDR routes for VPC peering to minimize the reachable surface between VPCs.",
+                suggested_fix="destination_cidr_block = \"10.0.1.0/24\" # Specific subnet"
             )
         return None
 
@@ -970,7 +974,8 @@ class RiskEngine:
                 resource_type='aws_route',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"tgw_id": after.get('transit_gateway_id'), "destination": dest},
-                recommendation="Ensure Transit Gateway routing is restricted to known internal CIDRs. Do not route all traffic to a TGW without inspecting it (e.g., in a security VPC)."
+                recommendation="Ensure Transit Gateway routing is restricted to known internal CIDRs. Do not route all traffic to a TGW without inspecting it (e.g., in a security VPC).",
+                suggested_fix="destination_cidr_block = \"10.0.0.0/8\" # Internal VPC ranges"
             )
         return None
 
@@ -996,7 +1001,8 @@ class RiskEngine:
                 resource_type='aws_flow_log',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"deleted": True},
-                recommendation="Enable VPC Flow Logs for network monitoring and security analysis."
+                recommendation="Enable VPC Flow Logs for network monitoring and security analysis.",
+                suggested_fix="resource \"aws_flow_log\" \"example\" {\n  iam_role_arn    = aws_iam_role.example.arn\n  log_destination = aws_cloudwatch_log_group.example.arn\n  traffic_type    = \"ALL\"\n  vpc_id          = aws_vpc.example.id\n}"
             )
         return None
 
@@ -1023,7 +1029,8 @@ class RiskEngine:
                 resource_type='aws_guardduty_detector',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"disabled_or_deleted": True},
-                recommendation="GuardDuty should be enabled in all active and inactive regions for threat detection."
+                recommendation="GuardDuty should be enabled in all active and inactive regions for threat detection.",
+                suggested_fix="resource \"aws_guardduty_detector\" \"example\" {\n  enable = true\n}"
             )
         return None
 
@@ -1046,7 +1053,8 @@ class RiskEngine:
                 resource_type=change.get('type'),
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"deleted": True},
-                recommendation="Maintain Security Hub subscriptions for continuous compliance monitoring."
+                recommendation="Maintain Security Hub subscriptions for continuous compliance monitoring.",
+                suggested_fix="resource \"aws_securityhub_account\" \"example\" {}\n\nresource \"aws_securityhub_standards_subscription\" \"cis\" {\n  depends_on    = [aws_securityhub_account.example]\n  standards_arn = \"arn:aws:securityhub:::ruleset/cis-aws-foundations-benchmark/v/1.2.0\"\n}"
             )
         return None
 
@@ -1069,7 +1077,8 @@ class RiskEngine:
                 resource_type='aws_config_configuration_recorder',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"deleted": True},
-                recommendation="Enable AWS Config for resource relationship tracking and compliance history."
+                recommendation="Enable AWS Config for resource relationship tracking and compliance history.",
+                suggested_fix="resource \"aws_config_configuration_recorder\" \"example\" {\n  name     = \"example\"\n  role_arn = aws_iam_role.example.arn\n}"
             )
         return None
 
@@ -1097,7 +1106,8 @@ class RiskEngine:
                 resource_type='aws_cloudwatch_log_group',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"retention_days": 0},
-                recommendation="Configure a log retention period (e.g., 30, 90, or 365 days) to manage costs and comply with data lifecycle policies."
+                recommendation="Configure a log retention period (e.g., 30, 90, or 365 days) to manage costs and comply with data lifecycle policies.",
+                suggested_fix="retention_in_days = 90"
             )
         return None
 
@@ -1124,7 +1134,8 @@ class RiskEngine:
                 resource_type='aws_cloudtrail',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"log_validation_enabled": False},
-                recommendation="Enable log file validation to ensure the integrity of CloudTrail logs."
+                recommendation="Enable log file validation to ensure the integrity of CloudTrail logs.",
+                suggested_fix="enable_log_file_validation = true"
             )
         return None
 
@@ -1151,7 +1162,8 @@ class RiskEngine:
                 resource_type='aws_cloudtrail',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"kms_missing": True},
-                recommendation="Use a Customer Managed Key (CMK) in KMS to encrypt CloudTrail logs for enhanced security control."
+                recommendation="Use a Customer Managed Key (CMK) in KMS to encrypt CloudTrail logs for enhanced security control.",
+                suggested_fix="kms_key_id = \"arn:aws:kms:us-east-1:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab\""
             )
         return None
 
@@ -1180,7 +1192,8 @@ class RiskEngine:
                 resource_type='aws_kms_key',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"rotation_enabled": False},
-                recommendation="Enable automatic key rotation for Customer Managed Keys to improve security posture."
+                recommendation="Enable automatic key rotation for Customer Managed Keys to improve security posture.",
+                suggested_fix="enable_key_rotation = true"
             )
         return None
 
@@ -1208,7 +1221,8 @@ class RiskEngine:
                 resource_type='aws_kms_key',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"principal_star": True},
-                recommendation="Restrict KMS key policies to specific IAM roles or accounts. Never use Principal: '*' in a key policy."
+                recommendation="Restrict KMS key policies to specific IAM roles or accounts. Never use Principal: '*' in a key policy.",
+                suggested_fix="statement {\n  sid    = \"Enable IAM User Permissions\"\n  effect = \"Allow\"\n  principals {\n    type        = \"AWS\"\n    identifiers = [\"arn:aws:iam::123456789012:root\"]\n  }\n  actions   = [\"kms:*\"]\n  resources = [\"*\"]\n}"
             )
         return None
 
@@ -1236,7 +1250,8 @@ class RiskEngine:
                 resource_type='aws_ecr_repository',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"scan_on_push": False},
-                recommendation="Enable scan on push for ECR repositories to detect vulnerabilities in container images."
+                recommendation="Enable scan on push for ECR repositories to detect vulnerabilities in container images.",
+                suggested_fix="image_scanning_configuration {\n  scan_on_push = true\n}"
             )
         return None
 
@@ -1259,7 +1274,8 @@ class RiskEngine:
                 resource_type='aws_ecrpublic_repository',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"public": True},
-                recommendation="Ensure container images intended for internal use are not stored in public ECR repositories."
+                recommendation="Ensure container images intended for internal use are not stored in public ECR repositories.",
+                suggested_fix="# Use private ECR repository instead:\n# resource \"aws_ecr_repository\" \"private\" {\n#   name = \"example\"\n# }"
             )
         return None
 
@@ -1287,7 +1303,8 @@ class RiskEngine:
                 resource_type='aws_s3_bucket_versioning',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"status": status},
-                recommendation="Enable versioning on critical S3 buckets to protect against accidental deletions or overwrites."
+                recommendation="Enable versioning on critical S3 buckets to protect against accidental deletions or overwrites.",
+                suggested_fix="versioning_configuration {\n  status = \"Enabled\"\n}"
             )
         return None
 
@@ -1315,7 +1332,8 @@ class RiskEngine:
                 resource_type='aws_dynamodb_table',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"pitr_enabled": False},
-                recommendation="Enable PITR for production DynamoDB tables to allow recovery from accidental data modifications."
+                recommendation="Enable PITR for production DynamoDB tables to allow recovery from accidental data modifications.",
+                suggested_fix="point_in_time_recovery {\n  enabled = true\n}"
             )
         return None
 
@@ -1342,7 +1360,8 @@ class RiskEngine:
                 resource_type='aws_sqs_queue',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"encryption_missing": True},
-                recommendation="Enable SSE for SQS queues using either SQS-managed keys or KMS CMKs."
+                recommendation="Enable SSE for SQS queues using either SQS-managed keys or KMS CMKs.",
+                suggested_fix="sqs_managed_sse_enabled = true"
             )
         return None
 
@@ -1369,7 +1388,8 @@ class RiskEngine:
                 resource_type='aws_sns_topic',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"kms_missing": True},
-                recommendation="Configure a KMS key for SNS topics to encrypt message data at rest."
+                recommendation="Configure a KMS key for SNS topics to encrypt message data at rest.",
+                suggested_fix="kms_master_key_id = \"alias/aws/sns\" # Or a CMK ARN"
             )
         return None
 
@@ -1430,7 +1450,8 @@ class RiskEngine:
                 resource_type='aws_db_instance',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"retention_period": retention},
-                recommendation="Set backup retention to at least 7 days for production databases to ensure point-in-time recovery options."
+                recommendation="Set backup retention to at least 7 days for production databases to ensure point-in-time recovery options.",
+                suggested_fix="backup_retention_period = 7"
             )
         return None
 
@@ -1457,7 +1478,8 @@ class RiskEngine:
                 resource_type='aws_db_snapshot_attribute',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"public_restore": True},
-                recommendation="Never share database snapshots with 'all'. Restrict sharing to specific AWS account IDs."
+                recommendation="Never share database snapshots with 'all'. Restrict sharing to specific AWS account IDs.",
+                suggested_fix="values = [\"123456789012\"] # Specific Account ID"
             )
         return None
 
@@ -1485,7 +1507,8 @@ class RiskEngine:
                 resource_type='aws_ebs_snapshot_permission',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"public_group": "all"},
-                recommendation="Remove public volume creation permissions from EBS snapshots."
+                recommendation="Remove public volume creation permissions from EBS snapshots.",
+                suggested_fix="# Do not use group = \"all\""
             )
         return None
 
@@ -1512,7 +1535,8 @@ class RiskEngine:
                 resource_type='aws_s3_bucket',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"force_destroy": True},
-                recommendation="Disable force_destroy on production buckets to prevent accidental data loss during infrastructure teardowns."
+                recommendation="Disable force_destroy on production buckets to prevent accidental data loss during infrastructure teardowns.",
+                suggested_fix="force_destroy = false"
             )
         return None
 
@@ -1538,7 +1562,8 @@ class RiskEngine:
                 resource_type='aws_kms_key',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"scheduled_deletion": True, "window": after.get('deletion_window_in_days') if after else "immediate"},
-                recommendation="Ensure that the KMS key scheduled for deletion is no longer required for decrypting legacy data."
+                recommendation="Ensure that the KMS key scheduled for deletion is no longer required for decrypting legacy data.",
+                suggested_fix="# To prevent deletion, ensure 'deletion_window_in_days' is not set\n# or use 'terraform untaint' if it was marked for deletion."
             )
         return None
 
@@ -1600,7 +1625,8 @@ class RiskEngine:
                 resource_type='aws_instance',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"associate_public_ip_address": True},
-                recommendation="Avoid assigning public IPs to instances. Use NAT Gateways for outbound access and Load Balancers or Bastion hosts for inbound access."
+                recommendation="Avoid assigning public IPs to instances. Use NAT Gateways for outbound access and Load Balancers or Bastion hosts for inbound access.",
+                suggested_fix="associate_public_ip_address = false"
             )
         return None
 
@@ -1627,7 +1653,8 @@ class RiskEngine:
                 resource_type='aws_autoscaling_group',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"min_size": 0},
-                recommendation="Set a minimum size greater than zero for production services to ensure high availability."
+                recommendation="Set a minimum size greater than zero for production services to ensure high availability.",
+                suggested_fix="min_size = 1"
             )
         return None
 
@@ -1654,7 +1681,8 @@ class RiskEngine:
                 resource_type='aws_lambda_function_url',
                 resource_ref=self._hash_resource_ref(change.get('address', '')),
                 evidence={"authorization_type": "NONE"},
-                recommendation="Enable AWS_IAM authorization for Lambda function URLs unless public access is explicitly intended and secured via other means."
+                recommendation="Enable AWS_IAM authorization for Lambda function URLs unless public access is explicitly intended and secured via other means.",
+                suggested_fix="authorization_type = \"AWS_IAM\""
             )
         return None
 
@@ -1685,7 +1713,8 @@ class RiskEngine:
                     resource_type=resource_type,
                     resource_ref=self._hash_resource_ref(change.get('address', '')),
                     evidence={"authorization": auth},
-                    recommendation="Configure an authorizer (IAM/Cognito/Lambda) or require an API key for API Gateway methods."
+                    recommendation="Configure an authorizer (IAM/Cognito/Lambda) or require an API key for API Gateway methods.",
+                    suggested_fix="authorization = \"AWS_IAM\" # Or \"CUSTOM\", \"COGNITO_USER_POOLS\""
                 )
         
         # v2 Route
@@ -1699,7 +1728,8 @@ class RiskEngine:
                     resource_type=resource_type,
                     resource_ref=self._hash_resource_ref(change.get('address', '')),
                     evidence={"authorization_type": auth_type},
-                    recommendation="Configure an authorization type for API Gateway v2 routes."
+                    recommendation="Configure an authorization type for API Gateway v2 routes.",
+                    suggested_fix="authorization_type = \"AWS_IAM\""
                  )
         return None
 
@@ -1729,7 +1759,8 @@ class RiskEngine:
                     resource_type=resource_type,
                     resource_ref=self._hash_resource_ref(change.get('address', '')),
                     evidence={"access_logs_enabled": False},
-                    recommendation="Enable access logging for ALBs to record information about the requests sent to your load balancer."
+                    recommendation="Enable access logging for ALBs to record information about the requests sent to your load balancer.",
+                    suggested_fix="access_logs {\n  bucket  = aws_s3_bucket.logs.id\n  prefix  = \"alb-logs\"\n  enabled = true\n}"
                 )
         else:
              # If completely missing access_logs block (simplified detection)

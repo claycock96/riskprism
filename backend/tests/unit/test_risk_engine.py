@@ -137,3 +137,7 @@ def test_expansion_rules(risk_engine, expansion_plan):
     assert "RDS-DELETION-PROTECTION-OFF" in risk_ids
     assert "EC2-IMDSV1-ALLOWED" in risk_ids
     assert "LAMBDA-URL-AUTH-NONE" in risk_ids
+
+    # New requirement: Every finding must have a suggested_fix
+    for finding in findings:
+        assert finding.suggested_fix is not None, f"Finding {finding.risk_id} missing suggested_fix"

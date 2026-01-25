@@ -7,7 +7,7 @@ Turn change into clear decisions with AI-powered risk and explanations.
 - **🛡️ Dual Analysis Modes**:
   - **Terraform Plan**: Analyzing infrastructure changes (`terraform show -json tfplan`)
   - **IAM Policy**: Comprehensive security analysis of AWS IAM policies for privilege escalation risks
-- **Deterministic Risk Engine**: 14+ production-ready security rules covering IAM, networking, encryption, and more across Terraform and IAM contexts
+- **Deterministic Risk Engine**: **65+ production-ready security rules** covering IAM, networking, encryption, data safety, and privilege escalation across Terraform and IAM contexts
 - **High-Concurrency Engine**: Non-blocking Async AI and SQLite WAL mode support 20+ simultaneous users ⚡
 - **Analysis Caching**: SHA-256 Plan Fingerprinting allows skipping redundant AI calls—saves 90%+ in latency and API costs 💸
 - **Safe-by-Design**: Safe feature extraction and hashing—sensitive values and resource names never leave your env
@@ -295,27 +295,45 @@ If AWS credentials are not configured, the backend runs in mock mode:
 
 ## Security Rules
 
-The risk engine implements 14 production-ready rules:
+The risk engine implements **65+ production-ready rules** across multiple categories:
 
-### Networking & Exposure
-1.  **SG-OPEN-INGRESS** - Public security group ingress (Critical/High)
-2.  **NACL-ALLOW-ALL** - Wide open Network ACLs (High)
-3.  **LB-INTERNET-FACING** - Internet-facing Load Balancer (Medium)
+### Networking & Exposure 🌐
+- **SG-OPEN-INGRESS/EGRESS** - Public ingress/egress audits (Critical/High)
+- **NACL-ALLOW-ALL** - Wide open Network ACLs (High)
+- **LB-INTERNET-FACING** - Internet-facing Load Balancer (Medium)
+- **ROUTE-IGW-DEFAULT** - Default route to Internet Gateway in private subnets (Critical)
+- **VPC-PEERING-OPEN** - Risky VPC peering configurations (Medium)
 
-### Storage & Datastores
-4.  **S3-PUBLIC-ACL-OR-POLICY** - Public S3 access (Critical)
-5.  **S3-PAB-REMOVED** - S3 Block Public Access disabled (High)
-6.  **S3-ENCRYPTION-REMOVED** - S3 encryption removed (High)
-7.  **RDS-PUBLICLY-ACCESSIBLE** - Public RDS instance (Critical)
-8.  **RDS-ENCRYPTION-OFF** - RDS encryption disabled (High)
-9.  **EBS-ENCRYPTION-OFF** - EBS volume encryption disabled (High)
+### Data Protection & Storage 🔒
+- **S3-PUBLIC-ACCESS** - Public S3 policies or ACLs (Critical)
+- **RDS-PUBLICLY-ACCESSIBLE** - Public RDS instance (Critical)
+- **ECR-PUBLIC-REPO** - Public container repositories (Critical)
+- **S3-VERSIONING-OFF** - Missing bucket safety controls (Medium)
+- **KMS-POLICY-OPEN** - Overly broad KMS key policies (Critical)
 
-### IAM & Security
-10. **IAM-ADMIN-WILDCARD** - IAM wildcard permissions in inline policies (Critical)
-11. **IAM-MANAGED-POLICY** - Dangerous AWS managed policy attachments (Critical/High)
-12. **IAM-PASSROLE-BROAD** - Broad iam:PassRole permissions (High)
-13. **CT-LOGGING-DISABLED** - CloudTrail disabled (Critical)
-14. **KMS-DECRYPT-BROAD** - Overly broad KMS decryption permissions (High)
+### IAM & Privilege Escalation 🆔
+- **IAM-POLICY-VERSION-PRIVESC** - CreatePolicyVersion escalation (Critical)
+- **IAM-ATTACH-POLICY-PRIVESC** - Attach/Put Policy broad permissions (Critical)
+- **IAM-CHAIN-PASSROLE** - Multi-action escalation chains (EC2/Lambda/ECS + PassRole) (Critical)
+- **STS-ASSUMEROLE-NO-EXTERNALID** - Missing 3rd party trust guardrails (High)
+- **STS-PRINCIPAL-ACCOUNT-ROOT** - Trusting account root instead of specific principals (Medium)
+
+### Logging & Monitoring 📋
+- **CT-LOGGING-DISABLED** - CloudTrail disabled (Critical)
+- **VPC-FLOWLOGS-OFF** - Network logging disabled (High)
+- **GUARDDUTY-OFF** - Threat detection disabled (High)
+- **LOGGROUP-RETENTION-INFINITE** - Missing log lifecycle policies (Medium)
+
+### Safety & Destructive Controls 🧨
+- **RDS-DELETION-PROTECTION-OFF** - Database deletion protection disabled (High)
+- **RDS-PUBLIC-SNAPSHOTS** - Publicly shared database snapshots (Critical)
+- **S3-FORCE-DESTROY-TRUE** - Buckets configured for easy data loss (High)
+- **KMS-SCHEDULE-DELETE** - Encryption keys scheduled for deletion (High)
+
+### Compute Exposure 💻
+- **EC2-IMDSV1-ALLOWED** - Enforcing IMDSv2 metadata hardening (Critical)
+- **LAMBDA-URL-AUTH-NONE** - Publicly accessible Lambda URLs (Critical)
+- **APIGW-OPEN-AUTH** - API Gateways lacking authorization (High)
 
 ## Configuration
 
