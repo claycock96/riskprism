@@ -58,6 +58,13 @@ def s3_public_policy():
         return json.load(f)
 
 
+@pytest.fixture
+def iam_expansion_policy():
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "iam" / "iam_expansion_test.json"
+    with open(fixture_path) as f:
+        return json.load(f)
+
+
 def test_parse_valid_policy(iam_analyzer, admin_policy):
     """Verify parser handles standard IAM policy structure."""
     parsed = iam_analyzer.parse(admin_policy)
@@ -153,6 +160,18 @@ def test_rule_s3_public(iam_analyzer, s3_public_policy):
     assert s3_findings[0].severity == Severity.HIGH
 
 
+def test_arn_hashing(iam_analyzer, least_privilege_policy):
+    """Verify ARNs are hashed in sanitized output."""
+    parsed = iam_analyzer.parse(least_privilege_policy)
+    findings = iam_analyzer.analyze(parsed)
+    sanitized = iam_analyzer.sanitize_for_llm(parsed, findings)
+    
+    # ARNs should be hashed
+    assert sanitized["analyzer_type"] == "iam"
+    # Check if hash map is populated via the analyzer instance
+    assert len(iam_analyzer.get_resource_hash_map()) > 0
+
+
 def test_summary_generation(iam_analyzer, passrole_policy):
     """Verify summary statistics are accurate."""
     parsed = iam_analyzer.parse(passrole_policy)
@@ -163,13 +182,24 @@ def test_summary_generation(iam_analyzer, passrole_policy):
     assert summary["wildcard_resources"] == 3
 
 
-def test_arn_hashing(iam_analyzer, least_privilege_policy):
-    """Verify ARNs are hashed in sanitized output."""
-    parsed = iam_analyzer.parse(least_privilege_policy)
+def test_iam_expansion_rules(iam_analyzer, iam_expansion_policy):
+    """Verify that the massive IAM expansion triggers all representative rules."""
+    parsed = iam_analyzer.parse(iam_expansion_policy)
     findings = iam_analyzer.analyze(parsed)
-    sanitized = iam_analyzer.sanitize_for_llm(parsed, findings)
     
-    # Check that hash map is populated
-    hash_map = iam_analyzer.get_resource_hash_map()
-    # ARNs should be hashed
-    assert sanitized["analyzer_type"] == "iam"
+    risk_ids = [f.risk_id for f in findings]
+    
+    # Privilege Escalation
+    assert "IAM-POLICY-VERSION-PRIVESC" in risk_ids
+    assert "IAM-ATTACH-POLICY-PRIVESC" in risk_ids
+    assert "IAM-CHAIN-EC2-PRIVESC" in risk_ids
+    assert "IAM-CHAIN-LAMBDA-PRIVESC" in risk_ids
+    
+    # Exfiltration / Misuse
+    assert "IAM-S3-GETOBJECT-WILDCARD" in risk_ids
+    assert "IAM-KMS-PUTKEYPOLICY" in risk_ids
+    assert "IAM-KMS-CREATEGRANT" in risk_ids
+    
+    # Hygiene
+    assert "IAM-ALLOW-NOTRESOURCE-WILDCARD" in risk_ids
+    assert "IAM-DENY-MISSING" in risk_ids  # Should trigger because high-risk allows exist without deny

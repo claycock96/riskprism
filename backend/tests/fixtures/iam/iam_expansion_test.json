@@ -1,0 +1,71 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PrivEsc1",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreatePolicyVersion",
+                "iam:SetDefaultPolicyVersion"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "PrivEsc2",
+            "Effect": "Allow",
+            "Action": [
+                "iam:AttachUserPolicy",
+                "iam:PutRolePolicy"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "TrustIssue",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::123456789012:root"
+            },
+            "Action": "sts:AssumeRole",
+            "Resource": "*"
+        },
+        {
+            "Sid": "S3Exfil",
+            "Effect": "Allow",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::*/*"
+        },
+        {
+            "Sid": "KMSMisuse",
+            "Effect": "Allow",
+            "Action": [
+                "kms:PutKeyPolicy",
+                "kms:CreateGrant"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "EC2Chain",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:RunInstances",
+                "iam:PassRole"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "LambdaChain",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:CreateFunction",
+                "iam:PassRole"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "Hygiene",
+            "Effect": "Allow",
+            "Action": "s3:*",
+            "NotResource": "arn:aws:s3:::protected-bucket/*"
+        }
+    ]
+}

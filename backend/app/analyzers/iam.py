@@ -35,14 +35,16 @@ class IAMPolicyAnalyzer(BaseAnalyzer):
     
     # High-risk actions that require scrutiny
     HIGH_RISK_ACTIONS = {
-        'iam:PassRole', 'iam:CreateUser', 'iam:CreateRole', 'iam:AttachRolePolicy',
-        'iam:AttachUserPolicy', 'iam:PutRolePolicy', 'iam:PutUserPolicy',
-        'sts:AssumeRole', 'sts:AssumeRoleWithSAML', 'sts:AssumeRoleWithWebIdentity',
         'kms:Decrypt', 'kms:Encrypt', 'kms:GenerateDataKey',
         'secretsmanager:GetSecretValue', 'ssm:GetParameter', 'ssm:GetParameters',
         's3:GetObject', 's3:PutObject', 's3:DeleteObject',
         'lambda:InvokeFunction', 'lambda:UpdateFunctionCode',
         'ec2:RunInstances', 'ec2:TerminateInstances',
+        'iam:CreatePolicyVersion', 'iam:SetDefaultPolicyVersion',
+        'iam:AttachUserPolicy', 'iam:AttachRolePolicy', 'iam:AttachGroupPolicy',
+        'iam:PutUserPolicy', 'iam:PutRolePolicy', 'iam:PutGroupPolicy',
+        'iam:UpdateAssumeRolePolicy', 'iam:CreateAccessKey',
+        's3:PutBucketPolicy', 's3:PutBucketAcl', 'kms:PutKeyPolicy',
     }
     
     def __init__(self):
@@ -152,12 +154,29 @@ class IAMPolicyAnalyzer(BaseAnalyzer):
         """Run IAM security rules."""
         findings: List[RiskFinding] = []
         
+        has_deny = False
         for idx, stmt in enumerate(self._statements):
+            if stmt.get('Effect') == 'Deny':
+                has_deny = True
+            
             stmt_findings = self._analyze_statement(stmt, idx)
             findings.extend(stmt_findings)
             
             if len(findings) >= max_findings:
                 break
+        
+        # Rule 32: Missing Guardrail Denies (Advisory)
+        if not has_deny and any(f.severity in [Severity.CRITICAL, Severity.HIGH] for f in findings):
+            findings.append(RiskFinding(
+                risk_id='IAM-DENY-MISSING',
+                severity=Severity.LOW,
+                title='Missing Explicit Deny Guardrails',
+                description='Policy contains high-risk Allow statements but no explicit Deny statements to provide hard guardrails.',
+                resource_type='iam_policy',
+                resource_ref='global',
+                evidence={'has_deny': False},
+                recommendation='Consider adding explicit Deny statements for sensitive actions or regions to implement multiple layers of defense.',
+            ))
         
         # Sort by severity
         severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}
@@ -321,6 +340,317 @@ class IAMPolicyAnalyzer(BaseAnalyzer):
                 recommendation='Add Condition constraints like aws:MultiFactorAuthPresent or aws:SourceIp.',
             ))
         
+        # ========== Phase 7: Privilege Escalation & Trusts ==========
+        
+        # Rule 11: Policy Version Escalation
+        version_actions = [a for a in actions if a.lower() in ['iam:createpolicyversion', 'iam:setdefaultpolicyversion']]
+        if len(set(version_actions)) >= 1 and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-POLICY-VERSION-PRIVESC',
+                severity=Severity.CRITICAL,
+                title='IAM Policy Version Escalation',
+                description='Allows creating or setting policy versions on all resources - direct path to full admin privileges.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'actions': version_actions},
+                recommendation='Restrict these actions to specific policy ARNs or remove them entirely.',
+                suggested_fix='{"Action": ["iam:CreatePolicyVersion"], "Resource": ["arn:aws:iam::ACCOUNT:policy/TEAM-POLICY"]}'
+            ))
+            
+        # Rule 12: Attach/Put Policy Escalation
+        attach_actions = [a for a in actions if a.lower() in [
+            'iam:attachuserpolicy', 'iam:attachrolepolicy', 'iam:attachgrouppolicy',
+            'iam:putuserpolicy', 'iam:putrolepolicy', 'iam:putgrouppolicy'
+        ]]
+        if attach_actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-ATTACH-POLICY-PRIVESC',
+                severity=Severity.CRITICAL,
+                title='Policy Attachment Privilege Escalation',
+                description='Allows attaching or putting policies on arbitrary users/roles/groups - leads to full admin privileges.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'actions': attach_actions},
+                recommendation='Restrict Resource to specific IAM entity ARNs.',
+            ))
+            
+        # Rule 13: Update Trust Policy
+        if any(a.lower() == 'iam:updateassumerolepolicy' for a in actions) and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-UPDATE-TRUST-POLICY',
+                severity=Severity.CRITICAL,
+                title='Broad UpdateAssumeRolePolicy Permission',
+                description='Allows modifying trust policies of any role - can lead to account-wide lateral movement.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'action': 'iam:UpdateAssumeRolePolicy'},
+                recommendation='Restrict to specific role ARNs.',
+            ))
+            
+        # Rule 14: STS AssumeRole without ExternalID for 3rd parties
+        if any('assumerole' in a.lower() for a in actions):
+            # Check if Principal looks like a 3rd party (simplified check)
+            principal_val = str(principal)
+            if 'AWS' in principal_val and ':' in principal_val and 'ExternalId' not in str(conditions):
+                findings.append(RiskFinding(
+                    risk_id='STS-ASSUMEROLE-NO-EXTERNALID',
+                    severity=Severity.HIGH,
+                    title='AssumeRole Without ExternalId for Third Party',
+                    description='Trust policy allows third-party principal without ExternalID - vulnerable to Confused Deputy attack.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'principal': principal},
+                    recommendation='Use sts:ExternalId condition for all third-party trust relationships.',
+                ))
+                
+        # Rule 15: Trusts Account Root
+        if principal == '*' or (isinstance(principal, dict) and 'AWS' in principal and ':root' in str(principal['AWS'])):
+             if not conditions:
+                findings.append(RiskFinding(
+                    risk_id='STS-PRINCIPAL-ACCOUNT-ROOT',
+                    severity=Severity.MEDIUM,
+                    title='Trusts Account Root Without Conditions',
+                    description='Granting access to account root allows any identity in that account to assume the role.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'principal': principal},
+                    recommendation='Trust specific IAM principals or add Condition checks like aws:PrincipalArn.',
+                ))
+        
+        # Rule 16: Create Access Key (Missed from Phase 7)
+        if any(a.lower() in ['iam:createaccesskey', 'iam:updateaccesskey'] for a in actions) and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-CREATE-ACCESSKEY',
+                severity=Severity.HIGH,
+                title='Broad IAM Access Key Management',
+                description='Allows creating or updating access keys on all users - high risk for persistence and credential theft.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'actions': [a for a in actions if 'accesskey' in a.lower()]},
+                recommendation='Restrict to specific user ARNs or ${aws:username}.',
+            ))
+
+        # ========== Phase 8: Data Exfil & Misuse ==========
+
+        # Rule 17: S3 Put Bucket Policy/ACL (Can make public)
+        s3_mgmt_actions = [a for a in actions if a.lower() in ['s3:putbucketpolicy', 's3:putbucketacl', 's3:putinventoryconfiguration']]
+        if s3_mgmt_actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-S3-PUTBUCKETPOLICY',
+                severity=Severity.CRITICAL,
+                title='Broad S3 Management Permissions',
+                description='Allows modifying bucket policies or ACLs globally - can be used to make buckets public.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'actions': s3_mgmt_actions},
+                recommendation='Restrict to specific bucket ARNs.',
+            ))
+
+        # Rule 18: Broad S3 GetObject
+        if any(a.lower() == 's3:getobject' for a in actions) and any('*' in r for r in resources):
+             # Check if resource is truly broad like arn:aws:s3:::*/*
+             if any(r == '*' or 's3:::*' in r for r in resources):
+                findings.append(RiskFinding(
+                    risk_id='IAM-S3-GETOBJECT-WILDCARD',
+                    severity=Severity.HIGH,
+                    title='Broad S3 Read Access',
+                    description='Allows reading objects from all buckets or broad bucket patterns.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'action': 's3:GetObject', 'resources': resources},
+                    recommendation='Restrict to specific bucket/prefix ARNs.',
+                ))
+
+        # Rule 19: KMS PutKeyPolicy
+        if any(a.lower() == 'kms:putkeypolicy' for a in actions) and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-KMS-PUTKEYPOLICY',
+                severity=Severity.CRITICAL,
+                title='Broad KMS Key Policy Management',
+                description='Allows modifying policies of any KMS key - leads to total crypto bypass and data access.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'action': 'kms:PutKeyPolicy'},
+                recommendation='Restrict to specific key ARNs.',
+            ))
+
+        # Rule 20: Broad SSM/Secrets Read
+        sensitive_read = [a for a in actions if a.lower() in [
+            'ssm:getparameter', 'ssm:getparameters', 'ssm:getparametersby_path',
+            'secretsmanager:getsecretvalue'
+        ]]
+        if sensitive_read and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-SENSITIVE-READ-BROAD',
+                severity=Severity.HIGH,
+                title='Broad Sensitive Data Read Access',
+                description='Allows reading any SSM parameter or Secret Manager secret.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'actions': sensitive_read},
+                recommendation='Restrict to specific parameter or secret ARNs.',
+            ))
+            
+        # Rule 21: Organizations Account Management
+        org_actions = [a for a in actions if 'organizations:' in a.lower() and a.lower() not in ['organizations:describe*', 'organizations:list*']]
+        if org_actions and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='ORG-ACCOUNT-MGMT',
+                severity=Severity.CRITICAL,
+                title='Dangerous Organization Management Permissions',
+                description='Allows sensitive organization operations like moving accounts or closing the account.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'actions': org_actions[:5]},
+                recommendation='Restrict organization actions to the master account and specific organizational unit ARNs.',
+            ))
+
+        # ========== Phase 9: Complex Escalation Chains ==========
+
+        # Rule 22: EC2 + PassRole Chain
+        if any(a.lower() == 'ec2:runinstances' for a in actions) and any('passrole' in a.lower() for a in actions):
+             if '*' in resources:
+                findings.append(RiskFinding(
+                    risk_id='IAM-CHAIN-EC2-PRIVESC',
+                    severity=Severity.CRITICAL,
+                    title='EC2 + PassRole Privilege Escalation Chain',
+                    description='Granting both ec2:RunInstances and iam:PassRole allows an identity to create a new instance with ANY role, achieving full privilege escalation.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'actions': ['ec2:RunInstances', 'iam:PassRole']},
+                    recommendation='Restrict PassRole to specific roles and RunInstances to specific AMIs/Subnets.',
+                ))
+
+        # Rule 23: Lambda + PassRole Chain
+        lambda_write = [a for a in actions if a.lower() in ['lambda:createfunction', 'lambda:updatefunctionconfiguration', 'lambda:updatefunctioncode']]
+        if lambda_write and any('passrole' in a.lower() for a in actions):
+             if '*' in resources:
+                findings.append(RiskFinding(
+                    risk_id='IAM-CHAIN-LAMBDA-PRIVESC',
+                    severity=Severity.CRITICAL,
+                    title='Lambda + PassRole Privilege Escalation Chain',
+                    description='Allows creating or updating Lambda functions and passing arbitrary roles - full privilege escalation via code execution.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'actions': lambda_write + ['iam:PassRole']},
+                    recommendation='Restrict PassRole to specific roles.',
+                ))
+
+        # Rule 24: EventBridge Injection
+        if any(a.lower() == 'events:puttargets' for a in actions) and any(a.lower() == 'events:putrule' for a in actions):
+             if '*' in resources:
+                findings.append(RiskFinding(
+                    risk_id='IAM-EVENTBRIDGE-INJECTION',
+                    severity=Severity.HIGH,
+                    title='EventBridge Target Injection',
+                    description='Allows creating rules and injecting targets - can be used to trigger arbitrary compute (Lambda/SSM) with service-linked roles.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'actions': ['events:PutRule', 'events:PutTargets']},
+                    recommendation='Restrict to specific EventBridge rule ARNs.',
+                ))
+
+        # Rule 25: Lambda AddPermission Unscoped
+        if any(a.lower() == 'lambda:addpermission' for a in actions) and '*' in resources:
+            findings.append(RiskFinding(
+                risk_id='IAM-LAMBDA-ADD-PERMISSION-BROAD',
+                severity=Severity.HIGH,
+                title='Broad Lambda AddPermission Permission',
+                description='Allows modifying any Lambda function policy globally - can be used to open functions to public/cross-account access.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'action': 'lambda:AddPermission'},
+                recommendation='Restrict to specific function ARNs.',
+            ))
+            
+        # Rule 26: ECS + PassRole Chain
+        ecs_write = [a for a in actions if a.lower() in ['ecs:runtask', 'ecs:createservice', 'ecs:updateservice']]
+        if ecs_write and any('passrole' in a.lower() for a in actions):
+             if '*' in resources:
+                findings.append(RiskFinding(
+                    risk_id='IAM-CHAIN-ECS-PRIVESC',
+                    severity=Severity.CRITICAL,
+                    title='ECS + PassRole Privilege Escalation Chain',
+                    description='Allows running ECS tasks and passing arbitrary roles - full privilege escalation via container execution.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'actions': ecs_write + ['iam:PassRole']},
+                    recommendation='Restrict PassRole to specific roles.',
+                ))
+
+        # ========== Phase 10: Hygiene & Structure ==========
+
+        # Rule 27: KMS CreateGrant Without Constraints
+        if any(a.lower() == 'kms:creategrant' for a in actions) and '*' in resources:
+            if 'kms:GrantIsForAWSResource' not in str(conditions):
+                findings.append(RiskFinding(
+                    risk_id='IAM-KMS-CREATEGRANT',
+                    severity=Severity.HIGH,
+                    title='KMS CreateGrant Without Constraints',
+                    description='Granting kms:CreateGrant without the kms:GrantIsForAWSResource condition allows an attacker to create arbitrary grants for any principal.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'action': 'kms:CreateGrant'},
+                    recommendation='Add kms:GrantIsForAWSResource condition to ensure grants are only usable by AWS services.',
+                ))
+
+        # Rule 28: Decrypt Without Encryption Context
+        if any(a.lower() == 'kms:decrypt' for a in actions) and '*' in resources:
+            if 'kms:EncryptionContext' not in str(conditions):
+                findings.append(RiskFinding(
+                    risk_id='IAM-KMS-DECRYPT-NO-CONTEXT',
+                    severity=Severity.HIGH,
+                    title='KMS Decrypt Without Encryption Context',
+                    description='Allowing kms:Decrypt on all keys without a specific encryption context condition reduces the security of encrypted data.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'action': 'kms:Decrypt'},
+                    recommendation='Enforce encryption context conditions for sensitive data decryption.',
+                ))
+
+        # Rule 29: Anonymous/Public Principal Variants
+        principal_val = str(principal).replace(' ', '')
+        if principal == '*' or '"AWS":"*"' in principal_val:
+            if not conditions:
+                findings.append(RiskFinding(
+                    risk_id='IAM-PRINCIPAL-ANON-OR-ALL',
+                    severity=Severity.HIGH,
+                    title='Anonymous or Public Principal Detected',
+                    description='Granting access to "*" or {"AWS": "*"} without limiting conditions (IP/VPCe/OrgID) exposes resources to the public or all AWS accounts.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'principal': principal},
+                    recommendation='Restrict Principal to specific identities or add strict Condition guardrails.',
+                ))
+
+        # Rule 30: Allow + NotResource Pattern
+        if stmt.get('NotResource') and effect == 'Allow':
+            findings.append(RiskFinding(
+                risk_id='IAM-ALLOW-NOTRESOURCE-WILDCARD',
+                severity=Severity.MEDIUM,
+                title='Allow + NotResource Pattern Detected',
+                description='Using Allow with NotResource is fragile and often leads to unintended broad permissions.',
+                resource_type='iam_policy_statement',
+                resource_ref=f'stmt_{stmt_idx}',
+                evidence={'not_resource': stmt.get('NotResource')},
+                recommendation='Use explicit Resource lists instead of NotResource whenever possible.',
+            ))
+
+        # Rule 31: Weak Condition Wildcards
+        cond_str = str(conditions)
+        if 'StringLike' in cond_str and '*' in cond_str:
+             if '"*"' in cond_str or '": "*' in cond_str:
+                findings.append(RiskFinding(
+                    risk_id='IAM-CONDITION-STRINGLIKE-WILDCARD',
+                    severity=Severity.MEDIUM,
+                    title='Weak Wildcards in Policy Conditions',
+                    description='Policy conditions use broad wildcards (e.g., StringLike: {"aws:PrincipalArn": "*"}), potentially bypassing intended restrictions.',
+                    resource_type='iam_policy_statement',
+                    resource_ref=f'stmt_{stmt_idx}',
+                    evidence={'conditions': conditions},
+                    recommendation='Use specific values or tightly scoped wildcards in conditions.',
+                ))
+
         return findings
     
     def sanitize_for_llm(
