@@ -23,6 +23,11 @@ for arg in "$@"; do
     esac
 done
 
+# Ensure we have the absolute path to the project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
+
 echo "🧪 RiskPrism Master Test Runner"
 echo "==============================="
 
