@@ -7,6 +7,13 @@ from app.models import Severity
 def risk_engine():
     return RiskEngine()
 
+@pytest.fixture
+def expansion_plan():
+    from pathlib import Path
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "iam" / "expansion_test.json"
+    with open(fixture_path) as f:
+        return json.load(f)
+
 def test_rule_iam_passrole_wildcard(risk_engine):
     policy = {
         "Version": "2012-10-17",
@@ -114,3 +121,19 @@ def test_rule_ebs_encryption_off(risk_engine):
     finding = next(f for f in findings if f.risk_id == "EBS-ENCRYPTION-OFF")
     assert finding.severity == Severity.HIGH
     assert finding.evidence["encrypted"] is False
+
+def test_expansion_rules(risk_engine, expansion_plan):
+    """Verify that the expansion plan triggers multiple new rules."""
+    findings = risk_engine.analyze(expansion_plan, [])
+    
+    risk_ids = [f.risk_id for f in findings]
+    
+    # Verify representative rules from different categories
+    assert "SG-OPEN-EGRESS-ALL" in risk_ids
+    assert "SG-INGRESS-WIDE-CIDR" in risk_ids
+    assert "ROUTE-IGW-DEFAULT" in risk_ids
+    assert "GUARDDUTY-OFF" in risk_ids
+    assert "KMS-KEY-ROTATION-OFF" in risk_ids
+    assert "RDS-DELETION-PROTECTION-OFF" in risk_ids
+    assert "EC2-IMDSV1-ALLOWED" in risk_ids
+    assert "LAMBDA-URL-AUTH-NONE" in risk_ids

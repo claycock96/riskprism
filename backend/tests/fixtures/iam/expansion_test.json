@@ -1,0 +1,126 @@
+{
+    "terraform_version": "1.5.0",
+    "format_version": "1.2",
+    "resource_changes": [
+        {
+            "address": "aws_security_group.egress_all",
+            "type": "aws_security_group",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "egress": [
+                        {
+                            "from_port": 0,
+                            "to_port": 65535,
+                            "protocol": "-1",
+                            "cidr_blocks": [
+                                "0.0.0.0/0"
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "address": "aws_security_group.risky_port",
+            "type": "aws_security_group",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "ingress": [
+                        {
+                            "from_port": 8080,
+                            "to_port": 8080,
+                            "protocol": "tcp",
+                            "cidr_blocks": [
+                                "0.0.0.0/0"
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "address": "aws_route.igw_private",
+            "type": "aws_route",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "destination_cidr_block": "0.0.0.0/0",
+                    "gateway_id": "igw-12345"
+                }
+            }
+        },
+        {
+            "address": "aws_guardduty_detector.disabled",
+            "type": "aws_guardduty_detector",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "enable": false
+                }
+            }
+        },
+        {
+            "address": "aws_kms_key.no_rotation",
+            "type": "aws_kms_key",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "enable_key_rotation": false
+                }
+            }
+        },
+        {
+            "address": "aws_db_instance.no_deletion_protection",
+            "type": "aws_db_instance",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "deletion_protection": false,
+                    "backup_retention_period": 3
+                }
+            }
+        },
+        {
+            "address": "aws_instance.imdsv1",
+            "type": "aws_instance",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "metadata_options": [
+                        {
+                            "http_tokens": "optional"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "address": "aws_lambda_function_url.public",
+            "type": "aws_lambda_function_url",
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "after": {
+                    "authorization_type": "NONE"
+                }
+            }
+        }
+    ]
+}
