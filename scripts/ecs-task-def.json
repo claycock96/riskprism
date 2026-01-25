@@ -1,0 +1,66 @@
+[
+    {
+        "name": "backend",
+        "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/riskprism-backend:latest",
+        "cpu": 256,
+        "memory": 512,
+        "portMappings": [
+            {
+                "containerPort": 8000,
+                "hostPort": 8000,
+                "protocol": "tcp"
+            }
+        ],
+        "essential": true,
+        "environment": [
+            {
+                "name": "LLM_PROVIDER",
+                "value": "bedrock"
+            },
+            {
+                "name": "AWS_REGION",
+                "value": "${AWS_REGION}"
+            },
+            {
+                "name": "INTERNAL_ACCESS_CODE",
+                "value": "${INTERNAL_ACCESS_CODE}"
+            }
+        ],
+        "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+                "awslogs-group": "/ecs/riskprism",
+                "awslogs-region": "${AWS_REGION}",
+                "awslogs-stream-prefix": "backend"
+            }
+        }
+    },
+    {
+        "name": "frontend",
+        "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/riskprism-frontend:latest",
+        "cpu": 256,
+        "memory": 512,
+        "portMappings": [
+            {
+                "containerPort": 3000,
+                "hostPort": 3000,
+                "protocol": "tcp"
+            }
+        ],
+        "essential": true,
+        "environment": [
+            {
+                "name": "NEXT_PUBLIC_API_URL",
+                "value": "http://localhost:8000"
+            }
+        ],
+        "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+                "awslogs-group": "/ecs/riskprism",
+                "awslogs-region": "${AWS_REGION}",
+                "awslogs-stream-prefix": "frontend"
+            }
+        }
+    }
+]
