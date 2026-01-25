@@ -131,7 +131,7 @@ terraform apply tfplan
 🔍 Analyzing Terraform Plan...
 
 ═══════════════════════════════════════════════════════
-                  ANALYSIS SUMMARY ⚡ (Cached Analysis)
+                  ANALYSIS SUMMARY ⚡ 
 ═══════════════════════════════════════════════════════
 
 Resource Changes:
@@ -426,17 +426,15 @@ tf-analyze tfplan http://${PRIVATE_IP}:8000
 ```
 
 See [terraform/README.md](terraform/README.md) for detailed deployment instructions.
+See [docs/security_audit.md](docs/security_audit.md) for the latest **Security Audit Report**. ✅
 
-## Frontend Security Features
+## Security 🛡️
 
-The frontend implements privacy-preserving resource name display:
+Both production images are hardened and scanned for vulnerabilities using **Trivy**:
+- **Frontend**: 100% Clean (0 HIGH/CRITICAL vulnerabilities).
+- **Backend**: Systematically patched and upgraded to Debian Bookworm.
 
-1. **Resource Hashing**: Backend hashes resource addresses (e.g., `aws_db_instance.prod-database` → `res_abc123def4`)
-2. **Metadata Only**: Only resource types, actions, and changed paths sent to AI
-3. **Sensitive Keys Blocked**: Passwords, tokens, secrets filtered during parsing
-4. **Frontend Enhancement**: UI maps hashes back to readable names for display
-
-Result: AI gets privacy-protected data, you see readable resource names. Hover over the "How is data sanitized?" link in the UI for details.
+For full details, see the [Security Remediation Audit](docs/security_audit.md).
 
 ## Contributing
 

@@ -38,6 +38,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Remove global npm and empty cache to eliminate inherited vulnerabilities
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /root/.npm
+
 USER nextjs
 
 EXPOSE 3000

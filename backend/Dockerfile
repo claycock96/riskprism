@@ -2,30 +2,31 @@
 # Compatible with both Apple Silicon (arm64) and Intel (amd64)
 
 # Stage 1: Build dependencies
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim-bookworm AS builder
 
 WORKDIR /app
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     curl \
     gcc \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+RUN pip install --user --upgrade pip wheel && \
+    pip install --user --no-cache-dir -r requirements.txt
 
 # Stage 2: Production runtime
-FROM python:3.11-slim AS runner
+FROM python:3.11-slim-bookworm AS runner
 
 LABEL org.opencontainers.image.title="RiskPrism Backend"
 LABEL org.opencontainers.image.description="Security analysis engine for Terraform and IAM"
 
 WORKDIR /app
 
-# Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
+# Install minimal runtime dependencies and clean up
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && \

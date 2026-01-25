@@ -13,6 +13,14 @@ REGION=${AWS_REGION:-"us-east-1"}
 APP_NAME="riskprism"
 GIT_HASH=$(git rev-parse --short HEAD || echo "no-git")
 TAG="prod-${GIT_HASH}"
+BUILD_ARGS=""
+
+# Parse flags
+for arg in "$@"; do
+    if [ "$arg" == "--no-cache" ]; then
+        BUILD_ARGS="--no-cache"
+    fi
+done
 
 # Detect Account ID
 RAW_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")
@@ -36,7 +44,7 @@ build_and_tag() {
     local repo=$2
     
     echo "🏗️  Building $service production image..."
-    docker build -t "$service:local" -t "$repo:$TAG" -t "$repo:latest" "./$service"
+    docker build $BUILD_ARGS -t "$service:local" -t "$repo:$TAG" -t "$repo:latest" "./$service"
 }
 
 push_image() {
