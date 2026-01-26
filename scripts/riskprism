@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -e
 
 # Ensure we are running from the project root (optional for CLI but good for consistency)
@@ -16,6 +17,13 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
+
+# Helper for colored output that works across shells
+log_color() {
+    local color=$1
+    shift
+    printf "${color}%b${NC}\n" "$*"
+}
 
 # Default API URL
 API_URL="${2:-http://localhost:8000}"
@@ -45,35 +53,35 @@ PLAN_FILE=$1
 
 # Check if plan file exists
 if [ ! -f "$PLAN_FILE" ]; then
-    echo -e "${RED}Error: Plan file '$PLAN_FILE' not found${NC}"
+    log_color "$RED" "Error: Plan file '$PLAN_FILE' not found"
     exit 1
 fi
 
 # Check if terraform is installed
 if ! command -v terraform &> /dev/null; then
-    echo -e "${RED}Error: terraform command not found${NC}"
+    log_color "$RED" "Error: terraform command not found"
     echo "Please install Terraform: https://www.terraform.io/downloads"
     exit 1
 fi
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
-    echo -e "${YELLOW}Warning: jq not found. Installing for better output formatting...${NC}"
+    log_color "$YELLOW" "Warning: jq not found. Installing for better output formatting..."
     # Try to install jq based on OS
     if [[ "$OSTYPE" == "darwin"* ]]; then
         if command -v brew &> /dev/null; then
             brew install jq
         else
-            echo -e "${RED}Error: jq required but not found. Install with: brew install jq${NC}"
+            log_color "$RED" "Error: jq required but not found. Install with: brew install jq"
             exit 1
         fi
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        echo -e "${RED}Error: jq required. Install with: sudo apt-get install jq or sudo yum install jq${NC}"
+        log_color "$RED" "Error: jq required. Install with: sudo apt-get install jq or sudo yum install jq"
         exit 1
     fi
 fi
 
-echo -e "${BOLD}🔍 RiskPrism Analyzing Plan...${NC}\n"
+log_color "$BOLD" "🔍 RiskPrism Analyzing Plan...\n"
 
 # Check if input is already JSON or a binary plan file
 if jq empty "$PLAN_FILE" 2>/dev/null; then
@@ -86,7 +94,7 @@ else
     PLAN_JSON=$(terraform show -json "$PLAN_FILE" 2>&1)
 
     if [ $? -ne 0 ]; then
-        echo -e "${RED}Error converting plan to JSON:${NC}"
+        log_color "$RED" "Error converting plan to JSON:"
         echo "$PLAN_JSON"
         exit 1
     fi
@@ -110,43 +118,47 @@ HTTP_CODE=$(curl -s -o "$RESPONSE_FILE" -w "%{http_code}" -X POST "$API_URL/anal
     "${HEADERS[@]}" \
     -d "$REQUEST_BODY")
 
-RESPONSE=$(cat "$RESPONSE_FILE")
-rm -f "$RESPONSE_FILE"
-
 # Check for successful response
 if [ "$HTTP_CODE" -ne 200 ]; then
-    echo -e "${RED}Error: API returned status $HTTP_CODE${NC}"
+    log_color "$RED" "Error: API returned status $HTTP_CODE"
     if [ "$HTTP_CODE" -eq 401 ]; then
-        echo -e "${YELLOW}Authentication failed. Please set your team access code:${NC}"
+        log_color "$YELLOW" "Authentication failed. Please set your team access code:"
         echo "  export INTERNAL_ACCESS_CODE=your-secret-code"
     elif [ "$HTTP_CODE" -eq 000 ]; then
-        echo -e "${RED}Failed to connect to API at $API_URL. Is the server running?${NC}"
+        log_color "$RED" "Failed to connect to API at $API_URL. Is the server running?"
     else
-        echo -e "Detail: $(echo "$RESPONSE" | jq -r '.detail // "No details provided"')"
+        log_color "$NC" "Detail: $(jq -r '.detail // "No details provided"' < "$RESPONSE_FILE")"
     fi
+    rm -f "$RESPONSE_FILE"
     exit 1
 fi
 
 # Check if response is valid JSON
-if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
-    echo -e "${RED}Error: Invalid response from API${NC}"
-    echo "$RESPONSE"
+if ! jq empty "$RESPONSE_FILE" 2>/dev/null; then
+    log_color "$RED" "Error: Invalid response from API"
+    cat "$RESPONSE_FILE"
+    rm -f "$RESPONSE_FILE"
     exit 1
 fi
 
-# Parse response
-CACHED=$(echo "$RESPONSE" | jq -r '.cached')
-TOTAL_CHANGES=$(echo "$RESPONSE" | jq -r '.summary.total_changes')
-CREATES=$(echo "$RESPONSE" | jq -r '.summary.creates')
-UPDATES=$(echo "$RESPONSE" | jq -r '.summary.updates')
-DELETES=$(echo "$RESPONSE" | jq -r '.summary.deletes')
-REPLACES=$(echo "$RESPONSE" | jq -r '.summary.replaces')
+# Parse response from file directly to avoid shell mangling
+RESPONSE_DATA() {
+    jq -r "$1" < "$RESPONSE_FILE"
+}
 
-TOTAL_FINDINGS=$(echo "$RESPONSE" | jq '.risk_findings | length')
-CRITICAL=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="critical")] | length')
-HIGH=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="high")] | length')
-MEDIUM=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="medium")] | length')
-LOW=$(echo "$RESPONSE" | jq '[.risk_findings[] | select(.severity=="low")] | length')
+# Parse response
+CACHED=$(RESPONSE_DATA '.cached')
+TOTAL_CHANGES=$(RESPONSE_DATA '.summary.total_changes')
+CREATES=$(RESPONSE_DATA '.summary.creates')
+UPDATES=$(RESPONSE_DATA '.summary.updates')
+DELETES=$(RESPONSE_DATA '.summary.deletes')
+REPLACES=$(RESPONSE_DATA '.summary.replaces')
+
+TOTAL_FINDINGS=$(RESPONSE_DATA '.risk_findings | length')
+CRITICAL=$(RESPONSE_DATA '[.risk_findings[] | select(.severity=="critical")] | length')
+HIGH=$(RESPONSE_DATA '[.risk_findings[] | select(.severity=="high")] | length')
+MEDIUM=$(RESPONSE_DATA '[.risk_findings[] | select(.severity=="medium")] | length')
+LOW=$(RESPONSE_DATA '[.risk_findings[] | select(.severity=="low")] | length')
 
 # Display summary
 CACHED_STR=""
@@ -154,81 +166,79 @@ if [ "$CACHED" = "true" ]; then
     CACHED_STR=" ${YELLOW}⚡ (Cached Analysis)${NC}"
 fi
 
-echo ""
-echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}                  ANALYSIS SUMMARY$CACHED_STR${NC}"
-echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
-echo ""
+printf "\n${BOLD}═══════════════════════════════════════════════════════${NC}\n"
+printf "${BOLD}                  ANALYSIS SUMMARY$CACHED_STR${NC}\n"
+printf "${BOLD}═══════════════════════════════════════════════════════${NC}\n\n"
 
 # Resource changes
-echo -e "${BOLD}Resource Changes:${NC}"
-echo "  Total: $TOTAL_CHANGES"
-[ "$CREATES" != "0" ] && echo -e "  ${GREEN}Creates:${NC}  $CREATES"
-[ "$UPDATES" != "0" ] && echo -e "  ${BLUE}Updates:${NC}  $UPDATES"
-[ "$DELETES" != "0" ] && echo -e "  ${RED}Deletes:${NC}  $DELETES"
-[ "$REPLACES" != "0" ] && echo -e "  ${YELLOW}Replaces:${NC} $REPLACES"
-echo ""
+printf "${BOLD}Resource Changes:${NC}\n"
+printf "  Total: $TOTAL_CHANGES\n"
+[ "$CREATES" != "0" ] && printf "  ${GREEN}Creates:${NC}  $CREATES\n"
+[ "$UPDATES" != "0" ] && printf "  ${BLUE}Updates:${NC}  $UPDATES\n"
+[ "$DELETES" != "0" ] && printf "  ${RED}Deletes:${NC}  $DELETES\n"
+[ "$REPLACES" != "0" ] && printf "  ${YELLOW}Replaces:${NC} $REPLACES\n"
+printf "\n"
 
 # Security findings
-echo -e "${BOLD}Security Findings: ${NC}$TOTAL_FINDINGS"
+printf "${BOLD}Security Findings: ${NC}$TOTAL_FINDINGS\n"
 if [ "$TOTAL_FINDINGS" -gt 0 ]; then
-    [ "$CRITICAL" != "0" ] && echo -e "  ${RED}${BOLD}🔴 Critical:${NC} $CRITICAL"
-    [ "$HIGH" != "0" ] && echo -e "  ${RED}🟠 High:${NC}     $HIGH"
-    [ "$MEDIUM" != "0" ] && echo -e "  ${YELLOW}🟡 Medium:${NC}   $MEDIUM"
-    [ "$LOW" != "0" ] && echo -e "  ${BLUE}🔵 Low:${NC}      $LOW"
+    [ "$CRITICAL" != "0" ] && printf "  ${RED}${BOLD}🔴 Critical:${NC} $CRITICAL\n"
+    [ "$HIGH" != "0" ] && printf "  ${RED}🟠 High:${NC}     $HIGH\n"
+    [ "$MEDIUM" != "0" ] && printf "  ${YELLOW}🟡 Medium:${NC}   $MEDIUM\n"
+    [ "$LOW" != "0" ] && printf "  ${BLUE}🔵 Low:${NC}      $LOW\n"
 else
-    echo -e "  ${GREEN}✓ No security issues found${NC}"
+    printf "  ${GREEN}✓ No security issues found${NC}\n"
 fi
-echo ""
+printf "\n"
 
 # Show critical and high findings details
 if [ "$CRITICAL" != "0" ] || [ "$HIGH" != "0" ]; then
-    echo -e "${BOLD}High Priority Findings:${NC}"
-    echo -e "${BOLD}───────────────────────────────────────────────────────${NC}"
+    printf "${BOLD}High Priority Findings:${NC}\n"
+    printf "${BOLD}───────────────────────────────────────────────────────${NC}\n"
 
-    echo "$RESPONSE" | jq -r '.risk_findings[] | select(.severity=="critical" or .severity=="high") |
+    RESPONSE_DATA '.risk_findings[] | select(.severity=="critical" or .severity=="high") |
         "\n[\(.severity | ascii_upcase)] \(.title)\n  Resource: \(.resource_type)\n  → \(.recommendation)"' | \
     while IFS= read -r line; do
         if [[ $line == \[CRITICAL\]* ]]; then
-            echo -e "${RED}${BOLD}$line${NC}"
+            log_color "$RED$BOLD" "$line"
         elif [[ $line == \[HIGH\]* ]]; then
-            echo -e "${RED}$line${NC}"
+            log_color "$RED" "$line"
         else
-            echo -e "$line"
+            printf "%s\n" "$line"
         fi
     done
-    echo ""
+    printf "\n"
 fi
 
 # Executive summary (if available)
-EXEC_SUMMARY=$(echo "$RESPONSE" | jq -r '.explanation.executive_summary[]?' 2>/dev/null)
+EXEC_SUMMARY=$(RESPONSE_DATA '.explanation.executive_summary[]?' 2>/dev/null)
 if [ ! -z "$EXEC_SUMMARY" ]; then
-    echo -e "${BOLD}AI Summary:${NC}"
-    echo -e "${BOLD}───────────────────────────────────────────────────────${NC}"
-    echo "$EXEC_SUMMARY" | while IFS= read -r line; do
-        echo "  • $line"
+    printf "${BOLD}AI Summary:${NC}\n"
+    printf "${BOLD}───────────────────────────────────────────────────────${NC}\n"
+    printf "%s\n" "$EXEC_SUMMARY" | while IFS= read -r line; do
+        printf "  • %s\n" "$line"
     done
-    echo ""
+    printf "\n"
 fi
 
 # Footer with next steps
-echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+printf "${BOLD}═══════════════════════════════════════════════════════${NC}\n"
 
 if [ "$CRITICAL" != "0" ]; then
-    echo -e "${RED}${BOLD}⚠️  CRITICAL ISSUES FOUND - Review required before apply${NC}"
+    log_color "$RED$BOLD" "⚠️  CRITICAL ISSUES FOUND - Review required before apply"
     EXIT_CODE=2
 elif [ "$HIGH" != "0" ]; then
-    echo -e "${YELLOW}${BOLD}⚠️  HIGH RISK ISSUES - Review recommended${NC}"
+    log_color "$YELLOW$BOLD" "⚠️  HIGH RISK ISSUES - Review recommended"
     EXIT_CODE=1
 else
-    echo -e "${GREEN}${BOLD}✓ Plan looks good - proceed with terraform apply${NC}"
+    log_color "$GREEN$BOLD" "✓ Plan looks good - proceed with terraform apply"
     EXIT_CODE=0
 fi
 
-echo ""
+printf "\n"
 
 # Extract session_id and show web UI link
-SESSION_ID=$(echo "$RESPONSE" | jq -r '.session_id // empty')
+SESSION_ID=$(RESPONSE_DATA '.session_id // empty')
 if [ ! -z "$SESSION_ID" ]; then
     # Determine frontend URL based on API URL
     if [[ "$API_URL" == *"localhost"* ]] || [[ "$API_URL" == *"127.0.0.1"* ]]; then
@@ -237,11 +247,14 @@ if [ ! -z "$SESSION_ID" ]; then
         # Extract host from API URL and use port 3000
         FRONTEND_URL=$(echo "$API_URL" | sed 's/:8000/:3000/')
     fi
-    echo "📋 Full report: ${FRONTEND_URL}/results/${SESSION_ID}"
+    printf "📋 Full report: %s/results/%s\n" "$FRONTEND_URL" "$SESSION_ID"
 else
-    echo "📋 No session saved (analysis complete)"
+    printf "📋 No session saved (analysis complete)\n"
 fi
 
-echo ""
+printf "\n"
+
+# Cleanup
+rm -f "$RESPONSE_FILE"
 
 exit $EXIT_CODE
