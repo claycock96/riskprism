@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # cd "$SCRIPT_DIR/.."
 
 # riskprism - CLI tool for RiskPrism security analysis
-# Usage: riskprism <plan-file> [api-url]
+# Usage: riskprism <plan-or-policy-file> [api-url]
 
 # Color codes
 RED='\033[0;31m'
@@ -28,24 +28,19 @@ log_color() {
 # Default API URL
 API_URL="${2:-http://localhost:8000}"
 
-# Check if plan file provided
+# Check if file provided
 if [ -z "$1" ]; then
-    echo "Usage: riskprism <plan-file> [api-url]"
+    echo "Usage: riskprism <file> [api-url]"
     echo ""
-    echo "Examples:"
+    echo "Documentation: CLI_USAGE.md"
+    echo ""
+    echo "Examples (Terraform):"
     echo "  riskprism tfplan                    # Binary plan file"
     echo "  riskprism plan.json                 # JSON plan file"
-    echo "  riskprism tfplan http://10.0.1.5:8000  # Use remote API"
     echo ""
-    echo "Workflow (binary plan):"
-    echo "  terraform plan -out=tfplan"
-    echo "  riskprism tfplan"
-    echo "  terraform apply tfplan"
+    echo "Examples (IAM):"
+    echo "  riskprism policy.json               # Standalone IAM policy"
     echo ""
-    echo "Workflow (JSON plan):"
-    echo "  terraform plan -out=tfplan"
-    echo "  terraform show -json tfplan > plan.json"
-    echo "  riskprism plan.json"
     exit 1
 fi
 
@@ -81,23 +76,43 @@ if ! command -v jq &> /dev/null; then
     fi
 fi
 
-log_color "$BOLD" "🔍 RiskPrism Analyzing Plan...\n"
+log_color "$BOLD" "🔍 RiskPrism Analyzing..."
 
-# Check if input is already JSON or a binary plan file
-if jq empty "$PLAN_FILE" 2>/dev/null; then
-    # Input is already valid JSON
-    echo "Reading plan JSON file..."
-    PLAN_JSON=$(cat "$PLAN_FILE")
+# Detect input type and prepare request
+IS_IAM=false
+if jq -e '(.Version == "2012-10-17") or .Statement' "$PLAN_FILE" >/dev/null 2>&1; then
+    IS_IAM=true
+    echo "Detected IAM policy document..."
+    FILE_CONTENT=$(cat "$PLAN_FILE")
+    ENDPOINT="/analyze/iam"
+    REQUEST_BODY=$(jq -n --argjson policy "$FILE_CONTENT" '{policy: $policy}')
+    CHANGE_LABEL="Policy Statements"
+    PRIMARY_ACTION_LABEL="Allow"
+    SECONDARY_ACTION_LABEL="Deny"
+elif jq empty "$PLAN_FILE" 2>/dev/null; then
+    # Input is already valid JSON Terraform plan
+    echo "Reading Terraform plan JSON..."
+    FILE_CONTENT=$(cat "$PLAN_FILE")
+    ENDPOINT="/analyze"
+    REQUEST_BODY=$(jq -n --argjson plan "$FILE_CONTENT" '{plan_json: $plan}')
+    CHANGE_LABEL="Resource Changes"
+    PRIMARY_ACTION_LABEL="Creates"
+    SECONDARY_ACTION_LABEL="Deletes"
 else
     # Input is a binary plan file, convert to JSON
-    echo "Converting plan to JSON..."
-    PLAN_JSON=$(terraform show -json "$PLAN_FILE" 2>&1)
+    echo "Converting Terraform binary plan to JSON..."
+    FILE_CONTENT=$(terraform show -json "$PLAN_FILE" 2>&1)
 
     if [ $? -ne 0 ]; then
-        log_color "$RED" "Error converting plan to JSON:"
-        echo "$PLAN_JSON"
+        log_color "$RED" "Error processing input file:"
+        echo "$FILE_CONTENT"
         exit 1
     fi
+    ENDPOINT="/analyze"
+    REQUEST_BODY=$(jq -n --argjson plan "$FILE_CONTENT" '{plan_json: $plan}')
+    CHANGE_LABEL="Resource Changes"
+    PRIMARY_ACTION_LABEL="Creates"
+    SECONDARY_ACTION_LABEL="Deletes"
 fi
 
 # Send to API
@@ -109,12 +124,9 @@ if [ ! -z "$INTERNAL_ACCESS_CODE" ]; then
     HEADERS+=("-H" "X-Internal-Code: $INTERNAL_ACCESS_CODE")
 fi
 
-# Wrap the plan JSON in the expected request format
-REQUEST_BODY=$(jq -n --argjson plan "$PLAN_JSON" '{plan_json: $plan}')
-
 # Use a temporary file for the response body
 RESPONSE_FILE=$(mktemp)
-HTTP_CODE=$(curl -s -o "$RESPONSE_FILE" -w "%{http_code}" -X POST "$API_URL/analyze" \
+HTTP_CODE=$(curl -s -o "$RESPONSE_FILE" -w "%{http_code}" -X POST "$API_URL$ENDPOINT" \
     "${HEADERS[@]}" \
     -d "$REQUEST_BODY")
 
@@ -171,12 +183,12 @@ printf "${BOLD}                  ANALYSIS SUMMARY$CACHED_STR${NC}\n"
 printf "${BOLD}═══════════════════════════════════════════════════════${NC}\n\n"
 
 # Resource changes
-printf "${BOLD}Resource Changes:${NC}\n"
+printf "${BOLD}$CHANGE_LABEL:${NC}\n"
 printf "  Total: $TOTAL_CHANGES\n"
-[ "$CREATES" != "0" ] && printf "  ${GREEN}Creates:${NC}  $CREATES\n"
+[ "$CREATES" != "0" ] && printf "  ${GREEN}$PRIMARY_ACTION_LABEL:${NC}  $CREATES\n"
 [ "$UPDATES" != "0" ] && printf "  ${BLUE}Updates:${NC}  $UPDATES\n"
-[ "$DELETES" != "0" ] && printf "  ${RED}Deletes:${NC}  $DELETES\n"
-[ "$REPLACES" != "0" ] && printf "  ${YELLOW}Replaces:${NC} $REPLACES\n"
+[ "$DELETES" != "0" ] && printf "  ${RED}$SECONDARY_ACTION_LABEL:${NC}  $DELETES\n"
+[ "$REPLACES" != "0" ] || [ "$IS_IAM" = false ] && [ "$REPLACES" != "0" ] && printf "  ${YELLOW}Replaces:${NC} $REPLACES\n"
 printf "\n"
 
 # Security findings
@@ -225,13 +237,13 @@ fi
 printf "${BOLD}═══════════════════════════════════════════════════════${NC}\n"
 
 if [ "$CRITICAL" != "0" ]; then
-    log_color "$RED$BOLD" "⚠️  CRITICAL ISSUES FOUND - Review required before apply"
+    log_color "$RED$BOLD" "⚠️  CRITICAL ISSUES FOUND - Review required"
     EXIT_CODE=2
 elif [ "$HIGH" != "0" ]; then
     log_color "$YELLOW$BOLD" "⚠️  HIGH RISK ISSUES - Review recommended"
     EXIT_CODE=1
 else
-    log_color "$GREEN$BOLD" "✓ Plan looks good - proceed with terraform apply"
+    log_color "$GREEN$BOLD" "✓ Analysis looks good"
     EXIT_CODE=0
 fi
 

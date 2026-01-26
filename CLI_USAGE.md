@@ -31,50 +31,33 @@ sudo ln -s $(pwd)/scripts/riskprism /usr/local/bin/riskprism
 
 ## Usage
 
-### Basic Workflow
+### Terraform Plan Analysis
 
 ```bash
-# 1. Write your Terraform code
-cd your-terraform-project
-
-# 2. Generate plan file
+# 1. Generate plan file
 terraform plan -out=tfplan
 
-# 3. Analyze the plan
+# 2. Analyze the plan
 riskprism tfplan
-
-# 4. Review output, then apply if safe
-terraform apply tfplan
 ```
 
-### With Remote API
+### IAM Policy Analysis
 
-If your analyzer is deployed on AWS or another server:
-
-```bash
-# Analyze using remote API
-riskprism tfplan http://10.0.1.50:8000
-
-# Or set environment variable
-export RISKPRISM_API=http://10.0.1.50:8000
-riskprism tfplan $RISKPRISM_API
-```
-
-### With Access Code Protection
-
-If the API is protected (standard for internal deployments), provide the access code via environment variable:
+You can also analyze standalone IAM policy JSON files. The tool automatically detects if the input is an IAM policy.
 
 ```bash
-export INTERNAL_ACCESS_CODE=your-team-password
-riskprism tfplan
+# Analyze a standalone IAM policy
+riskprism policy.json
 ```
 
 ## Output
 
-The tool provides a color-coded terminal summary:
+The tool provides a color-coded terminal summary. For IAM policies, the labels are adjusted to reflect policy statements instead of resource changes.
 
+### Example (Terraform)
 ```
-🔍 RiskPrism Analyzing Plan...
+🔍 RiskPrism Analyzing...
+Detected Terraform plan...
 
 ═══════════════════════════════════════════════════════
                   ANALYSIS SUMMARY
@@ -85,35 +68,37 @@ Resource Changes:
   Creates:  3
   Updates:  1
   Deletes:  1
+...
+```
 
-Security Findings: 2
-  🔴 Critical: 1
-  🟠 High:     1
-
-High Priority Findings:
-───────────────────────────────────────────────────────
-
-[CRITICAL] Security group allows public internet ingress
-  Resource: aws_security_group
-  → Restrict CIDR blocks to known IP ranges...
-
-[HIGH] S3 Block Public Access disabled
-  Resource: aws_s3_bucket_public_access_block
-  → Keep PAB on except explicitly approved.
-
-AI Summary:
-───────────────────────────────────────────────────────
-  • Plan creates 3 new resources and deletes 1
-  • Found 2 security issues requiring attention
-  • Public access controls are being modified
+### Example (IAM)
+```
+🔍 RiskPrism Analyzing...
+Detected IAM policy document...
 
 ═══════════════════════════════════════════════════════
-⚠️  CRITICAL ISSUES FOUND - Review required before apply
+                  ANALYSIS SUMMARY 
+═══════════════════════════════════════════════════════
 
-📋 Full report: http://localhost:3000/results/res_abc123def4
+Policy Statements:
+  Total: 2
+  Allow:  2
+  Deny:   0
+
+Security Findings: 1
+  🔴 Critical: 1
+...
 ```
 
 The report link leads to a persistent results page featuring **Visual Diff Highlighting** (Old vs New values) and can be shared with your team via **RiskPrism**.
+
+## Advanced Usage
+
+### Auto-Detection
+RiskPrism automatically detects the input type:
+- If the file contains `"Version": "2012-10-17"` or `"Statement"`, it is treated as an **IAM Policy**.
+- If it is a binary file or standard JSON without those keys, it is treated as a **Terraform Plan**.
+
 
 ## Exit Codes
 
