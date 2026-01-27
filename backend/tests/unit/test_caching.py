@@ -13,11 +13,11 @@ def test_fingerprint_deterministic(parser):
     skeleton_a = [
         ResourceChange(
             resource_type="aws_s3_bucket", action="create", changed_paths=["bucket"],
-            attribute_diffs=[], resource_id_hash="hash_1", resource_address="addr1"
+            attribute_diffs=[], resource_ref="hash_1", resource_address="addr1"
         ),
         ResourceChange(
             resource_type="aws_iam_user", action="update", changed_paths=["name"],
-            attribute_diffs=[], resource_id_hash="hash_2", resource_address="addr2"
+            attribute_diffs=[], resource_ref="hash_2", resource_address="addr2"
         )
     ]
     
@@ -25,11 +25,11 @@ def test_fingerprint_deterministic(parser):
     skeleton_b = [
         ResourceChange(
             resource_type="aws_iam_user", action="update", changed_paths=["name"],
-            attribute_diffs=[], resource_id_hash="hash_2", resource_address="addr2"
+            attribute_diffs=[], resource_ref="hash_2", resource_address="addr2"
         ),
         ResourceChange(
             resource_type="aws_s3_bucket", action="create", changed_paths=["bucket"],
-            attribute_diffs=[], resource_id_hash="hash_1", resource_address="addr1"
+            attribute_diffs=[], resource_ref="hash_1", resource_address="addr1"
         )
     ]
     
@@ -45,7 +45,7 @@ def test_fingerprint_sensitive_to_structure(parser):
     skeleton_a = [
         ResourceChange(
             resource_type="aws_s3_bucket", action="create", changed_paths=["bucket"],
-            attribute_diffs=[], resource_id_hash="hash_1", resource_address="addr1"
+            attribute_diffs=[], resource_ref="hash_1", resource_address="addr1"
         )
     ]
     
@@ -53,7 +53,7 @@ def test_fingerprint_sensitive_to_structure(parser):
     skeleton_b = [
         ResourceChange(
             resource_type="aws_s3_bucket", action="update", changed_paths=["bucket"],
-            attribute_diffs=[], resource_id_hash="hash_1", resource_address="addr1"
+            attribute_diffs=[], resource_ref="hash_1", resource_address="addr1"
         )
     ]
     

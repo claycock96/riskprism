@@ -13,12 +13,17 @@ class TerraformPlanParser:
     """
     Parses Terraform plan JSON and extracts minimal diff skeleton.
 
+    PRIVACY OWNERSHIP: This class is the single source of truth for Terraform
+    data sanitization. All sensitive data filtering happens here during
+    extract_diff_skeleton() - the output is safe to send to LLM/storage.
+
     Key responsibilities:
     - Validate plan JSON structure
     - Extract resource changes
     - Compute changed attribute paths
     - Generate stable hashes for resource references
-    - Never expose sensitive values
+    - Sanitize sensitive values (passwords, secrets, keys) via denylist
+    - Pattern-match and redact embedded secrets in string values
     """
 
     def __init__(self):
@@ -166,14 +171,14 @@ class TerraformPlanParser:
                 changed_paths = [d.path for d in attribute_diffs]
 
                 # Generate stable hash for resource reference
-                resource_id_hash = self._hash_resource_ref(address)
+                resource_ref = self._hash_resource_ref(address)
 
                 skeleton.append(ResourceChange(
                     resource_type=resource_type,
                     action=action,
                     changed_paths=changed_paths,
                     attribute_diffs=attribute_diffs,
-                    resource_id_hash=resource_id_hash,
+                    resource_ref=resource_ref,
                     resource_address=address
                 ))
 
@@ -319,8 +324,8 @@ class TerraformPlanParser:
         Returns:
             SHA-256 hash string
         """
-        # Sort by resource_id_hash to ensure deterministic fingerprint
-        sorted_skeleton = sorted(diff_skeleton, key=lambda x: x.resource_id_hash)
+        # Sort by resource_ref to ensure deterministic fingerprint
+        sorted_skeleton = sorted(diff_skeleton, key=lambda x: x.resource_ref)
         
         # Serialize only the data that matters for the security vibe
         hashable_data = [

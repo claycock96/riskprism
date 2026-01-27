@@ -35,7 +35,7 @@ export default function ResourceChanges({ diffSkeleton }: ResourceChangesProps) 
                 {diffSkeleton.map((resource, idx) => (
                     <div
                         key={idx}
-                        id={`resource-${resource.resource_id_hash}`}
+                        id={`resource-${resource.resource_ref}`}
                         className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden scroll-mt-20"
                     >
                         {/* Header */}

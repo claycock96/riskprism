@@ -61,7 +61,7 @@ class ResourceChange(BaseModel):
     action: str = Field(..., description="create/update/delete/replace")
     changed_paths: List[str] = Field(default_factory=list, description="Attribute paths that changed")
     attribute_diffs: List[AttributeDiff] = Field(default_factory=list, description="Detailed attribute changes")
-    resource_id_hash: str = Field(..., description="Stable hash of resource address")
+    resource_ref: str = Field(..., description="Stable hash of resource address")
     resource_address: Optional[str] = Field(None, description="Original resource address (for frontend display only, not sent to LLM)")
 
 

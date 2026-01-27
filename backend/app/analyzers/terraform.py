@@ -51,7 +51,7 @@ class TerraformAnalyzer(BaseAnalyzer):
         
         # Build hash map for frontend remapping
         self._resource_hash_map = {
-            change.resource_id_hash: change.resource_address
+            change.resource_ref: change.resource_address
             for change in self._diff_skeleton
         }
         

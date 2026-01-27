@@ -37,16 +37,8 @@ INTERNAL_ACCESS_CODE = os.getenv("INTERNAL_ACCESS_CODE")
 async def verify_internal_code(x_internal_code: Optional[str] = Header(None)):
     """
     Dependency to verify the internal access code.
-    SECURITY: Fail-Secure. If provided code doesn't match, or if
-    INTERNAL_ACCESS_CODE is not configured on the server, deny access.
+    Note: INTERNAL_ACCESS_CODE is validated at startup - if we reach here, it's configured.
     """
-    if not INTERNAL_ACCESS_CODE:
-        logger.critical("SECURITY ALERT: INTERNAL_ACCESS_CODE is not set! Refusing all requests.")
-        raise HTTPException(
-            status_code=503,
-            detail="Server configuration error: Authentication not configured. Contact administrator."
-        )
-    
     if x_internal_code != INTERNAL_ACCESS_CODE:
         logger.warning(f"Unauthorized access attempt. Provided code: {x_internal_code}")
         raise HTTPException(
@@ -57,6 +49,16 @@ async def verify_internal_code(x_internal_code: Optional[str] = Header(None)):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Validate required configuration
+    if not INTERNAL_ACCESS_CODE:
+        logger.critical("FATAL: INTERNAL_ACCESS_CODE environment variable is not set!")
+        logger.critical("Set INTERNAL_ACCESS_CODE to a secure random string (min 32 chars).")
+        logger.critical("Generate with: openssl rand -base64 32")
+        raise RuntimeError("INTERNAL_ACCESS_CODE must be configured before starting the server")
+
+    if len(INTERNAL_ACCESS_CODE) < 16:
+        logger.warning("SECURITY WARNING: INTERNAL_ACCESS_CODE is less than 16 characters. Consider using a longer, random value.")
+
     # Startup: Initialize database
     logger.info("Initializing database...")
     await init_db()
@@ -92,7 +94,8 @@ llm_client = LLMClient()
 
 
 @app.get("/auth/validate", dependencies=[Depends(verify_internal_code)])
-async def validate_auth():
+@limiter.limit("5/minute")
+async def validate_auth(request: Request):
     """
     Simple endpoint to verify if the provided access code is valid.
     Returns 200 if valid, otherwise the dependency raises 401.

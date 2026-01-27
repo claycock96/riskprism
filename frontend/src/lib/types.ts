@@ -17,7 +17,7 @@ export interface AttributeDiff {
 export interface ResourceChange {
   action: string
   resource_type: string
-  resource_id_hash: string
+  resource_ref: string
   changed_paths: string[]
   attribute_diffs: AttributeDiff[]
   resource_address?: string

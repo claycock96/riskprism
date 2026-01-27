@@ -15,25 +15,15 @@ export default function Home() {
   const [analyzerType, setAnalyzerType] = useState<AnalyzerType>('terraform')
   const [results, setResults] = useState<AnalyzeResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [loadingStage, setLoadingStage] = useState<'parsing' | 'rules' | 'ai' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handleAnalyzeTerraform = async (planJson: any) => {
     setLoading(true)
     setError(null)
     setResults(null)
-    setLoadingStage('parsing')
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
-      // Transition to rules immediately
-      setLoadingStage('rules')
-
-      // Set timer to switch to 'AI' after 600ms if still loading
-      const aiStageTimer = setTimeout(() => {
-        setLoadingStage('ai')
-      }, 600)
 
       const response = await authenticatedFetch(`${apiUrl}/analyze/terraform`, {
         method: 'POST',
@@ -43,23 +33,17 @@ export default function Home() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
-        clearTimeout(aiStageTimer)
         throw new Error(errorData.detail || `HTTP ${response.status}`)
       }
 
       const data: AnalyzeResponse = await response.json()
-      clearTimeout(aiStageTimer)
 
-      if (data.session_id) {
-        router.push(`/results/${data.session_id}`)
-      } else {
-        setResults(data)
-      }
+      // Always redirect to results page - session_id is guaranteed by default API behavior
+      router.push(`/results/${data.session_id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze plan')
     } finally {
       setLoading(false)
-      setLoadingStage(null)
     }
   }
 
@@ -67,16 +51,9 @@ export default function Home() {
     setLoading(true)
     setError(null)
     setResults(null)
-    setLoadingStage('parsing')
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
-      setLoadingStage('rules')
-
-      const aiStageTimer = setTimeout(() => {
-        setLoadingStage('ai')
-      }, 500)
 
       const response = await authenticatedFetch(`${apiUrl}/analyze/iam`, {
         method: 'POST',
@@ -86,25 +63,17 @@ export default function Home() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
-        clearTimeout(aiStageTimer)
         throw new Error(errorData.detail || `HTTP ${response.status}`)
       }
 
       const data: AnalyzeResponse = await response.json()
-      clearTimeout(aiStageTimer)
 
-      // IAM now has session persistence - redirect to results page
-      if (data.session_id) {
-        router.push(`/results/${data.session_id}`)
-      } else {
-        // Fallback: show results inline if no session_id
-        setResults(data)
-      }
+      // Always redirect to results page - session_id is guaranteed by default API behavior
+      router.push(`/results/${data.session_id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze IAM policy')
     } finally {
       setLoading(false)
-      setLoadingStage(null)
     }
   }
 
@@ -113,22 +82,12 @@ export default function Home() {
     setError(null)
   }
 
-  const getLoadingLabels = () => {
+  const getLoadingMessage = () => {
     if (analyzerType === 'terraform') {
-      return {
-        step1: 'Synthesizing Terraform Plan',
-        step2: 'Performing Safety Scan (14+ Rules)',
-        step3: 'Consulting AI Security Expert',
-      }
+      return 'Analyzing Terraform plan...'
     }
-    return {
-      step1: 'Parsing IAM Policy',
-      step2: 'Running Security Rules (10+ Checks)',
-      step3: 'Consulting AI Security Expert',
-    }
+    return 'Analyzing IAM policy...'
   }
-
-  const labels = getLoadingLabels()
 
   return (
     <div className="space-y-8">
@@ -154,29 +113,9 @@ export default function Home() {
       {loading && (
         <div className="card">
           <div className="flex flex-col items-center justify-center py-12">
-            <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-8"></div>
-
-            <div className="w-full max-w-xs space-y-4">
-              <div className={`flex items-center gap-3 transition-opacity ${loadingStage === 'parsing' ? 'opacity-100 font-bold text-blue-600' : 'opacity-50'}`}>
-                {loadingStage !== 'parsing' && <span className="text-green-500">✓</span>}
-                {loadingStage === 'parsing' && <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span>}
-                <p className="text-sm text-gray-700 dark:text-gray-300">{labels.step1}</p>
-              </div>
-
-              <div className={`flex items-center gap-3 transition-opacity ${(loadingStage === 'rules' || loadingStage === 'ai') ? 'opacity-100' : 'opacity-30'} ${loadingStage === 'rules' ? 'font-bold text-blue-600' : ''}`}>
-                {loadingStage === 'ai' ? <span className="text-green-500">✓</span> : <span className="w-4"></span>}
-                {loadingStage === 'rules' && <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span>}
-                <p className="text-sm text-gray-700 dark:text-gray-300">{labels.step2}</p>
-              </div>
-
-              <div className={`flex items-center gap-3 transition-opacity ${loadingStage === 'ai' ? 'opacity-100 font-bold text-blue-600' : 'opacity-30'}`}>
-                {loadingStage === 'ai' ? <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></span> : <span className="w-4"></span>}
-                <div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">{labels.step3}</p>
-                  {loadingStage === 'ai' && <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 animate-pulse italic">Thinking hard about your {analyzerType === 'terraform' ? 'infrastructure' : 'permissions'}...</p>}
-                </div>
-              </div>
-            </div>
+            <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-6"></div>
+            <p className="text-lg font-medium text-gray-900 dark:text-white">{getLoadingMessage()}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Running security rules and consulting AI</p>
           </div>
         </div>
       )}

@@ -3,6 +3,15 @@ Base Analyzer Framework
 
 Provides abstract base class for all security analyzers.
 Each analyzer implements parsing, rule evaluation, and LLM sanitization.
+
+PRIVACY MODEL:
+- Each analyzer is responsible for sanitizing its own input type
+- IAMPolicyAnalyzer: sanitize_for_llm() hashes ARNs, account IDs, resource names
+- TerraformAnalyzer: Uses TerraformPlanParser which sanitizes during extraction
+  (see parser.py for Terraform-specific sanitization logic)
+
+All sanitize_for_llm() implementations must ensure NO raw identifiers, secrets,
+or account-specific data reaches the LLM.
 """
 
 from abc import ABC, abstractmethod

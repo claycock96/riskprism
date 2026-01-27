@@ -19,7 +19,7 @@ export function createResourceMapping(
   // Add from diff_skeleton
   diffSkeleton.forEach(resource => {
     if (resource.resource_address) {
-      mapping[resource.resource_id_hash] = {
+      mapping[resource.resource_ref] = {
         address: resource.resource_address,
         type: resource.resource_type,
       }
