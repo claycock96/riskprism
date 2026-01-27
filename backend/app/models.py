@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List, Literal
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from sqlalchemy import Column, String, DateTime, Text
 from sqlalchemy.orm import DeclarativeBase
@@ -137,8 +137,8 @@ class AnalysisSession(Base):
 
     session_id = Column(String, primary_key=True)
     plan_hash = Column(String, index=True, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    accessed_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    accessed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Store complex objects as JSON strings
     summary_json = Column(Text, nullable=False)

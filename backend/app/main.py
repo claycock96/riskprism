@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Track application start time
-START_TIME = datetime.utcnow()
+START_TIME = datetime.now(timezone.utc)
 
 # Security: Internal Access Code
 INTERNAL_ACCESS_CODE = os.getenv("INTERNAL_ACCESS_CODE")
@@ -431,7 +431,7 @@ async def get_history(limit: int = 20):
 async def get_session_stats():
     """Get session storage statistics and application uptime."""
     stats = await session_store.stats()
-    uptime = datetime.utcnow() - START_TIME
+    uptime = datetime.now(timezone.utc) - START_TIME
     stats["uptime_seconds"] = int(uptime.total_seconds())
     return stats
 

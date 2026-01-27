@@ -5,13 +5,22 @@ Stores sanitized analysis results for sharing and historical review.
 
 import uuid
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, List
 from sqlalchemy import select, delete, func, update
 from .models import AnalyzeResponse, AnalysisSession
 from .database import async_session
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    """Ensure a datetime is timezone-aware (UTC). SQLite returns naive datetimes."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 class SessionStore:
@@ -86,14 +95,15 @@ class SessionStore:
                     return None
 
                 # Check if expired
-                age = datetime.utcnow() - record.created_at
+                created_at_utc = _ensure_utc(record.created_at)
+                age = datetime.now(timezone.utc) - created_at_utc
                 if age > self.ttl:
                     await session.delete(record)
                     await session.commit()
                     return None
 
                 # Update access time
-                record.accessed_at = datetime.utcnow()
+                record.accessed_at = datetime.now(timezone.utc)
                 await session.commit()
                 
                 return record.to_analyze_response()
@@ -121,14 +131,15 @@ class SessionStore:
                     return None
 
                 # Check if expired
-                age = datetime.utcnow() - record.created_at
+                created_at_utc = _ensure_utc(record.created_at)
+                age = datetime.now(timezone.utc) - created_at_utc
                 if age > self.ttl:
                     return None
 
                 # Update access time
-                record.accessed_at = datetime.utcnow()
+                record.accessed_at = datetime.now(timezone.utc)
                 await session.commit()
-                
+
                 return record.to_analyze_response()
             except Exception as e:
                 logger.error(f"Failed to get session by hash {plan_hash}: {e}")
@@ -155,7 +166,7 @@ class SessionStore:
         """
         Remove all expired entries.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expiry_limit = now - self.ttl
         
         async with async_session() as session:
@@ -183,10 +194,11 @@ class SessionStore:
                 oldest_result = await session.execute(select(func.min(AnalysisSession.created_at)))
                 oldest_date = oldest_result.scalar()
                 
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 oldest_age_hours = 0
                 if oldest_date:
-                    oldest_age_hours = (now - oldest_date).total_seconds() / 3600
+                    oldest_date_utc = _ensure_utc(oldest_date)
+                    oldest_age_hours = (now - oldest_date_utc).total_seconds() / 3600
 
                 return {
                     "total_sessions": total_sessions,
