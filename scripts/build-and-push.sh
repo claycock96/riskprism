@@ -42,7 +42,7 @@ FRONTEND_REPO="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${APP_NAME}-fronten
 build_and_tag() {
     local service=$1
     local repo=$2
-    
+
     echo "🏗️  Building $service production image..."
     docker build $BUILD_ARGS -t "$service:local" -t "$repo:$TAG" -t "$repo:latest" "./$service"
 }
@@ -57,7 +57,7 @@ push_image() {
     else
         echo "🔐 Logging in to ECR..."
         aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$repo"
-        
+
         echo "🚀 Pushing $service to $repo:$TAG..."
         docker push "$repo:$TAG"
         docker push "$repo:latest"

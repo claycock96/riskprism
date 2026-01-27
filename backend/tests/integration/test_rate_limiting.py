@@ -7,18 +7,20 @@ Note: These tests intentionally do NOT use the auto-reset fixture.
 
 import pytest
 from httpx import AsyncClient
+
 from app.main import app, limiter
 
 
 @pytest.fixture
 def anyio_backend():
-    return 'asyncio'
+    return "asyncio"
 
 
 @pytest.fixture
 async def rate_limit_client(anyio_backend):
     """Client with rate limiting enabled for testing rate limits."""
     import os
+
     os.environ["INTERNAL_ACCESS_CODE"] = "test-secret"
     # Enable and reset limiter for rate limit tests
     limiter.enabled = True
@@ -43,7 +45,7 @@ async def test_rate_limit_on_analyze_endpoint(rate_limit_client, auth_headers):
             {
                 "address": "aws_instance.rate_test",
                 "type": "aws_instance",
-                "change": {"actions": ["create"], "after": {}}
+                "change": {"actions": ["create"], "after": {}},
             }
         ]
     }
@@ -53,11 +55,7 @@ async def test_rate_limit_on_analyze_endpoint(rate_limit_client, auth_headers):
     rate_limited_count = 0
 
     for i in range(15):
-        response = await rate_limit_client.post(
-            "/analyze",
-            json={"plan_json": plan},
-            headers=auth_headers
-        )
+        response = await rate_limit_client.post("/analyze", json={"plan_json": plan}, headers=auth_headers)
         if response.status_code == 200:
             success_count += 1
         elif response.status_code == 429:
@@ -74,28 +72,16 @@ async def test_rate_limit_returns_429(rate_limit_client, auth_headers):
     """Verify rate limited requests return 429 status code."""
     plan = {
         "resource_changes": [
-            {
-                "address": "aws_instance.test",
-                "type": "aws_instance",
-                "change": {"actions": ["create"], "after": {}}
-            }
+            {"address": "aws_instance.test", "type": "aws_instance", "change": {"actions": ["create"], "after": {}}}
         ]
     }
 
     # Exhaust the rate limit
     for _ in range(12):
-        await rate_limit_client.post(
-            "/analyze",
-            json={"plan_json": plan},
-            headers=auth_headers
-        )
+        await rate_limit_client.post("/analyze", json={"plan_json": plan}, headers=auth_headers)
 
     # Next request should be rate limited
-    response = await rate_limit_client.post(
-        "/analyze",
-        json={"plan_json": plan},
-        headers=auth_headers
-    )
+    response = await rate_limit_client.post("/analyze", json={"plan_json": plan}, headers=auth_headers)
 
     assert response.status_code == 429
 
@@ -107,10 +93,7 @@ async def test_rate_limit_on_auth_validate(rate_limit_client, auth_headers):
     rate_limited_count = 0
 
     for i in range(8):
-        response = await rate_limit_client.get(
-            "/auth/validate",
-            headers=auth_headers
-        )
+        response = await rate_limit_client.get("/auth/validate", headers=auth_headers)
         if response.status_code == 200:
             success_count += 1
         elif response.status_code == 429:
@@ -144,26 +127,15 @@ async def test_rate_limit_different_endpoints_independent(rate_limit_client, aut
     """Verify rate limits are tracked per-endpoint."""
     plan = {
         "resource_changes": [
-            {
-                "address": "aws_instance.test",
-                "type": "aws_instance",
-                "change": {"actions": ["create"], "after": {}}
-            }
+            {"address": "aws_instance.test", "type": "aws_instance", "change": {"actions": ["create"], "after": {}}}
         ]
     }
 
     # Exhaust /analyze rate limit
     for _ in range(12):
-        await rate_limit_client.post(
-            "/analyze",
-            json={"plan_json": plan},
-            headers=auth_headers
-        )
+        await rate_limit_client.post("/analyze", json={"plan_json": plan}, headers=auth_headers)
 
     # /history should still work (different endpoint)
-    response = await rate_limit_client.get(
-        "/history",
-        headers=auth_headers
-    )
+    response = await rate_limit_client.get("/history", headers=auth_headers)
     # History doesn't have rate limiting, should always work
     assert response.status_code == 200

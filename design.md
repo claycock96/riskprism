@@ -594,4 +594,3 @@ Request (Option A: raw plan JSON to backend):
 ---
 
 *End of Design Document*
-

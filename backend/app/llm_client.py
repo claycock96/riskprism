@@ -1,8 +1,9 @@
+import asyncio
 import json
 import logging
 import os
-import asyncio
-from typing import Dict, Any, Optional
+from typing import Any
+
 import boto3
 from botocore.config import Config
 
@@ -25,10 +26,10 @@ class LLMClient:
 
     def __init__(
         self,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         region: str = "us-east-1",
-        bedrock_model_id: Optional[str] = None,
-        anthropic_model: Optional[str] = None
+        bedrock_model_id: str | None = None,
+        anthropic_model: str | None = None,
     ):
         """
         Initialize LLM client.
@@ -41,7 +42,9 @@ class LLMClient:
         """
         self.provider = provider or os.getenv("LLM_PROVIDER", "bedrock")
         self.region = region
-        self.bedrock_model_id = bedrock_model_id or os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+        self.bedrock_model_id = bedrock_model_id or os.getenv(
+            "BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"
+        )
         self.anthropic_model = anthropic_model or os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
         self.credentials_valid = False
         self.client = None
@@ -73,16 +76,10 @@ class LLMClient:
 
     def _init_bedrock(self):
         """Initialize AWS Bedrock client"""
-        config = Config(
-            region_name=self.region,
-            retries={
-                'max_attempts': 3,
-                'mode': 'adaptive'
-            }
-        )
+        config = Config(region_name=self.region, retries={"max_attempts": 3, "mode": "adaptive"})
 
         try:
-            self.client = boto3.client('bedrock-runtime', config=config)
+            self.client = boto3.client("bedrock-runtime", config=config)
             # Test if credentials are actually valid
             try:
                 session = boto3.Session()
@@ -91,14 +88,16 @@ class LLMClient:
                     self.credentials_valid = True
                     logger.info(f"Bedrock client initialized with valid credentials (model: {self.bedrock_model_id})")
                 else:
-                    logger.warning("Bedrock client initialized but no AWS credentials found. Will operate in mock mode.")
+                    logger.warning(
+                        "Bedrock client initialized but no AWS credentials found. Will operate in mock mode."
+                    )
             except Exception as cred_error:
                 logger.warning(f"AWS credentials not available: {cred_error}. Will operate in mock mode.")
         except Exception as e:
             logger.warning(f"Bedrock client initialization failed: {e}. Will operate in mock mode.")
             self.client = None
 
-    async def generate_explanation(self, sanitized_payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_explanation(self, sanitized_payload: dict[str, Any]) -> dict[str, Any]:
         """
         Generate plain-English explanation from sanitized plan data.
 
@@ -136,29 +135,26 @@ class LLMClient:
         # Parse response
         explanation, pr_comment = self._parse_response(response_text, sanitized_payload)
 
-        return {
-            "explanation": explanation,
-            "pr_comment": pr_comment
-        }
+        return {"explanation": explanation, "pr_comment": pr_comment}
 
-    def _build_prompt(self, sanitized_payload: Dict[str, Any]) -> str:
+    def _build_prompt(self, sanitized_payload: dict[str, Any]) -> str:
         """
         Build prompt for LLM with sanitized data.
-        
+
         Detects analyzer type and uses appropriate prompt template.
         """
         # Detect analyzer type
-        analyzer_type = sanitized_payload.get('analyzer_type', 'terraform')
-        
+        analyzer_type = sanitized_payload.get("analyzer_type", "terraform")
+
         # Convert to JSON for structured input
         payload_json = json.dumps(sanitized_payload, indent=2, default=str)
         logger.debug(f"Sanitized payload size: {len(payload_json)} characters")
-        
-        if analyzer_type == 'iam':
+
+        if analyzer_type == "iam":
             return self._build_iam_prompt(payload_json)
         else:
             return self._build_terraform_prompt(payload_json)
-    
+
     def _build_iam_prompt(self, payload_json: str) -> str:
         """Build IAM-specific analysis prompt."""
         return f"""You are an AWS IAM security specialist. Your task is to analyze an IAM policy and generate a clear, actionable security review.
@@ -275,12 +271,7 @@ Format your response as JSON with this structure:
                 model=self.anthropic_model,
                 max_tokens=4096,
                 temperature=0.3,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             response_text = message.content[0].text
@@ -306,12 +297,7 @@ Format your response as JSON with this structure:
             request_body = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
+                "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.3,
             }
 
@@ -319,14 +305,12 @@ Format your response as JSON with this structure:
 
             # Run synchronous Boto3 call in a thread pool to avoid blocking event loop
             response = await asyncio.to_thread(
-                self.client.invoke_model,
-                modelId=self.bedrock_model_id,
-                body=json.dumps(request_body)
+                self.client.invoke_model, modelId=self.bedrock_model_id, body=json.dumps(request_body)
             )
 
             # Parse response
-            response_body = json.loads(response['body'].read())
-            response_text = response_body['content'][0]['text']
+            response_body = json.loads(response["body"].read())
+            response_text = response_body["content"][0]["text"]
 
             logger.info("Bedrock call successful")
             return response_text
@@ -335,7 +319,7 @@ Format your response as JSON with this structure:
             logger.error(f"Bedrock API call failed: {e}")
             raise
 
-    def _generate_mock_response(self, sanitized_payload: Dict[str, Any]) -> str:
+    def _generate_mock_response(self, sanitized_payload: dict[str, Any]) -> str:
         """
         Generate mock response when LLM is not available.
 
@@ -351,7 +335,7 @@ Format your response as JSON with this structure:
             "executive_summary": [
                 f"Terraform plan creates {summary['creates']} resources, updates {summary['updates']}, deletes {summary['deletes']}, replaces {summary['replaces']}",
                 f"Found {len(risk_findings)} security findings ({critical_count} critical, {high_count} high severity)",
-                "Review required before applying changes"
+                "Review required before applying changes",
             ],
             "plain_english_changes": f"This plan modifies {summary['total_changes']} resources. The changes include infrastructure updates that require security review. Check the risk findings below for specific concerns.",
             "top_risks_explained": f"MOCK MODE: LLM provider '{self.provider}' not configured. See risk_findings in the response for detailed security issues detected by the rule engine.",
@@ -359,17 +343,13 @@ Format your response as JSON with this structure:
                 "Are the security group rules appropriately scoped?",
                 "Do IAM policies follow least privilege?",
                 "Is encryption enabled for data at rest?",
-                "Are public access configurations intentional and approved?"
-            ]
+                "Are public access configurations intentional and approved?",
+            ],
         }
 
         return json.dumps(mock_response)
 
-    def _parse_response(
-        self,
-        response_text: str,
-        sanitized_payload: Dict[str, Any]
-    ) -> tuple[BedrockExplanation, str]:
+    def _parse_response(self, response_text: str, sanitized_payload: dict[str, Any]) -> tuple[BedrockExplanation, str]:
         """
         Parse LLM response into structured format.
 
@@ -398,7 +378,7 @@ Format your response as JSON with this structure:
                 executive_summary=response_data.get("executive_summary", []),
                 plain_english_changes=response_data.get("plain_english_changes", ""),
                 top_risks_explained=response_data.get("top_risks_explained", ""),
-                review_questions=response_data.get("review_questions", [])
+                review_questions=response_data.get("review_questions", []),
             )
 
             # Generate PR comment
@@ -414,18 +394,14 @@ Format your response as JSON with this structure:
                 executive_summary=["See full explanation below"],
                 plain_english_changes=response_text,
                 top_risks_explained="",
-                review_questions=[]
+                review_questions=[],
             )
 
             pr_comment = f"## Terraform Plan Review\n\n{response_text}"
 
             return explanation, pr_comment
 
-    def _generate_pr_comment(
-        self,
-        explanation: BedrockExplanation,
-        sanitized_payload: Dict[str, Any]
-    ) -> str:
+    def _generate_pr_comment(self, explanation: BedrockExplanation, sanitized_payload: dict[str, Any]) -> str:
         """
         Generate formatted PR comment text.
 
@@ -440,22 +416,16 @@ Format your response as JSON with this structure:
         risk_findings = sanitized_payload["risk_findings"]
 
         # Count by severity
-        severity_counts = {
-            "critical": 0,
-            "high": 0,
-            "medium": 0,
-            "low": 0,
-            "info": 0
-        }
+        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
 
         for finding in risk_findings:
             severity = finding.get("severity", "info")
             severity_counts[severity] += 1
 
         # Build PR comment - handle both Terraform and IAM summary formats
-        analyzer_type = summary.get('analyzer_type', sanitized_payload.get('analyzer_type', 'terraform'))
-        
-        if analyzer_type == 'iam':
+        analyzer_type = summary.get("analyzer_type", sanitized_payload.get("analyzer_type", "terraform"))
+
+        if analyzer_type == "iam":
             # IAM Policy summary format
             comment_parts = [
                 "## 🔐 IAM Policy Analysis",
@@ -490,34 +460,20 @@ Format your response as JSON with this structure:
             ]
 
         if explanation.executive_summary:
-            comment_parts.extend([
-                "### Executive Summary",
-                ""
-            ])
+            comment_parts.extend(["### Executive Summary", ""])
             for bullet in explanation.executive_summary:
                 comment_parts.append(f"- {bullet}")
             comment_parts.append("")
 
         if explanation.top_risks_explained and "MOCK MODE" not in explanation.top_risks_explained:
-            comment_parts.extend([
-                "### Top Risks",
-                "",
-                explanation.top_risks_explained,
-                ""
-            ])
+            comment_parts.extend(["### Top Risks", "", explanation.top_risks_explained, ""])
 
         if explanation.review_questions:
-            comment_parts.extend([
-                "### Review Checklist",
-                ""
-            ])
+            comment_parts.extend(["### Review Checklist", ""])
             for question in explanation.review_questions:
                 comment_parts.append(f"- [ ] {question}")
             comment_parts.append("")
 
-        comment_parts.extend([
-            "---",
-            "_Generated by RiskPrism_"
-        ])
+        comment_parts.extend(["---", "_Generated by RiskPrism_"])
 
         return "\n".join(comment_parts)

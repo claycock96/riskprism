@@ -16,118 +16,113 @@ or account-specific data reaches the LLM.
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, Any, List, Optional
+from typing import Any
+
 from pydantic import BaseModel
 
-from app.models import RiskFinding, PlanSummary
+from app.models import RiskFinding
 
 
 class AnalyzerType(str, Enum):
     """Supported analyzer types."""
+
     TERRAFORM = "terraform"
     IAM = "iam"
 
 
 class AnalysisResult(BaseModel):
     """Standard result format for all analyzers."""
+
     analyzer_type: AnalyzerType
-    summary: Dict[str, Any]
-    findings: List[RiskFinding]
-    sanitized_payload: Dict[str, Any]
-    resource_hash_map: Dict[str, str]  # hash -> original name (for frontend remapping)
-    
+    summary: dict[str, Any]
+    findings: list[RiskFinding]
+    sanitized_payload: dict[str, Any]
+    resource_hash_map: dict[str, str]  # hash -> original name (for frontend remapping)
+
 
 class BaseAnalyzer(ABC):
     """
     Abstract base class for security analyzers.
-    
+
     All analyzers must implement:
     - parse(): Validate and normalize input
     - analyze(): Run deterministic security rules
     - sanitize_for_llm(): Prepare privacy-safe payload for AI
     - generate_summary(): Create high-level statistics
     """
-    
+
     analyzer_type: AnalyzerType
-    
+
     @abstractmethod
-    def parse(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    def parse(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """
         Parse and validate input data.
-        
+
         Args:
             input_data: Raw input (e.g., Terraform plan JSON, IAM policy)
-            
+
         Returns:
             Normalized/validated data structure
-            
+
         Raises:
             ValueError: If input is invalid
         """
         pass
-    
+
     @abstractmethod
-    def analyze(
-        self, 
-        parsed_data: Dict[str, Any],
-        max_findings: int = 50
-    ) -> List[RiskFinding]:
+    def analyze(self, parsed_data: dict[str, Any], max_findings: int = 50) -> list[RiskFinding]:
         """
         Run deterministic security rules against parsed data.
-        
+
         Args:
             parsed_data: Output from parse()
             max_findings: Maximum number of findings to return
-            
+
         Returns:
             List of security findings
         """
         pass
-    
+
     @abstractmethod
-    def sanitize_for_llm(
-        self, 
-        parsed_data: Dict[str, Any],
-        findings: List[RiskFinding]
-    ) -> Dict[str, Any]:
+    def sanitize_for_llm(self, parsed_data: dict[str, Any], findings: list[RiskFinding]) -> dict[str, Any]:
         """
         Create a sanitized payload safe to send to LLM.
-        
+
         This should:
         - Hash sensitive identifiers (resource names, ARNs, account IDs)
         - Extract only structural information (no raw values)
         - Include evidence tokens from findings
-        
+
         Args:
             parsed_data: Output from parse()
             findings: Output from analyze()
-            
+
         Returns:
             Sanitized payload dict
         """
         pass
-    
+
     @abstractmethod
-    def generate_summary(self, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_summary(self, parsed_data: dict[str, Any]) -> dict[str, Any]:
         """
         Generate high-level summary statistics.
-        
+
         Args:
             parsed_data: Output from parse()
-            
+
         Returns:
             Summary dict (format varies by analyzer type)
         """
         pass
-    
+
     @abstractmethod
-    def get_resource_hash_map(self) -> Dict[str, str]:
+    def get_resource_hash_map(self) -> dict[str, str]:
         """
         Get the mapping of hashed references to original names.
-        
+
         This is used by the frontend to remap hashed identifiers
         back to human-readable names.
-        
+
         Returns:
             Dict mapping hash -> original identifier
         """

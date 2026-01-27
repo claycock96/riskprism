@@ -1,10 +1,10 @@
 import hashlib
 import json
-import re
-from typing import Dict, Any, List, Set, Optional
 import logging
+import re
+from typing import Any
 
-from app.models import PlanSummary, ResourceChange, AttributeDiff
+from app.models import AttributeDiff, PlanSummary, ResourceChange
 
 logger = logging.getLogger(__name__)
 
@@ -29,40 +29,89 @@ class TerraformPlanParser:
     def __init__(self):
         # Denylist is still used for immediate exclusion of keys
         self.sensitive_keys = {
-            'password', 'passwd', 'secret', 'token', 'apikey', 'api_key',
-            'access_key', 'secret_key', 'private_key', 'client_secret',
-            'certificate', 'cert', 'key_material', 'user_data', 'bootstrap'
+            "password",
+            "passwd",
+            "secret",
+            "token",
+            "apikey",
+            "api_key",
+            "access_key",
+            "secret_key",
+            "private_key",
+            "client_secret",
+            "certificate",
+            "cert",
+            "key_material",
+            "user_data",
+            "bootstrap",
         }
-        
+
         # Allowlist of attributes where the VALUE is considered safe to send to LLM/Store
         self.safe_attributes = {
-            'type', 'action', 'id', 'name', 'resource_type', 'resource_address',
-            'severity', 'risk_id', 'recommendation', 'total_changes', 'creates',
-            'updates', 'deletes', 'replaces', 'terraform_version',
+            "type",
+            "action",
+            "id",
+            "name",
+            "resource_type",
+            "resource_address",
+            "severity",
+            "risk_id",
+            "recommendation",
+            "total_changes",
+            "creates",
+            "updates",
+            "deletes",
+            "replaces",
+            "terraform_version",
             # Networking
-            'cidr_blocks', 'ipv6_cidr_blocks', 'protocol', 'from_port', 'to_port',
-            'egress', 'ingress', 'self', 'description', # Description can be risky but often useful
+            "cidr_blocks",
+            "ipv6_cidr_blocks",
+            "protocol",
+            "from_port",
+            "to_port",
+            "egress",
+            "ingress",
+            "self",
+            "description",  # Description can be risky but often useful
             # RDS / DB
-            'engine', 'engine_version', 'instance_class', 'multi_az', 'publicly_accessible',
-            'storage_type', 'allocated_storage', 'database_name',
+            "engine",
+            "engine_version",
+            "instance_class",
+            "multi_az",
+            "publicly_accessible",
+            "storage_type",
+            "allocated_storage",
+            "database_name",
             # S3
-            'acl', 'force_destroy', 'versioning_configuration', 'mfa_delete',
+            "acl",
+            "force_destroy",
+            "versioning_configuration",
+            "mfa_delete",
             # Compute
-            'ami', 'instance_type', 'key_name', 'monitoring', 'ebs_optimized',
-            'architecture', 'image_id', 'runtime', 'handler', 'memory_size', 'timeout'
+            "ami",
+            "instance_type",
+            "key_name",
+            "monitoring",
+            "ebs_optimized",
+            "architecture",
+            "image_id",
+            "runtime",
+            "handler",
+            "memory_size",
+            "timeout",
         }
 
         # Regex patterns for common secrets to catch them even in "safe" fields
         self.secret_patterns = [
-            re.compile(r'(?i)key-[a-zA-Z0-9]{20,}'), # Generic key-like string
-            re.compile(r'(?i)secret[_-]?key[:=]\s*[^\s]{10,}'),
-            re.compile(r'(?i)password[:=]\s*[^\s]{8,}'),
-            re.compile(r'AKIA[0-9A-Z]{16}'), # AWS Access Key
-            re.compile(r'[a-zA-Z0-9+/]{40}'), # AWS Secret Key (approx)
-            re.compile(r'sk_live_[0-9a-zA-Z]{24}'), # Stripe Secret Key
+            re.compile(r"(?i)key-[a-zA-Z0-9]{20,}"),  # Generic key-like string
+            re.compile(r"(?i)secret[_-]?key[:=]\s*[^\s]{10,}"),
+            re.compile(r"(?i)password[:=]\s*[^\s]{8,}"),
+            re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS Access Key
+            re.compile(r"[a-zA-Z0-9+/]{40}"),  # AWS Secret Key (approx)
+            re.compile(r"sk_live_[0-9a-zA-Z]{24}"),  # Stripe Secret Key
         ]
 
-    def parse(self, plan_json: Dict[str, Any]) -> Dict[str, Any]:
+    def parse(self, plan_json: dict[str, Any]) -> dict[str, Any]:
         """
         Parse and validate Terraform plan JSON structure.
 
@@ -79,13 +128,13 @@ class TerraformPlanParser:
             raise ValueError("plan_json must be a dictionary")
 
         # Check for required fields
-        if 'resource_changes' not in plan_json:
+        if "resource_changes" not in plan_json:
             raise ValueError("Missing 'resource_changes' field in plan JSON")
 
         logger.info(f"Parsed plan with {len(plan_json.get('resource_changes', []))} resource changes")
         return plan_json
 
-    def generate_summary(self, plan_json: Dict[str, Any]) -> PlanSummary:
+    def generate_summary(self, plan_json: dict[str, Any]) -> PlanSummary:
         """
         Generate high-level summary statistics from plan.
 
@@ -95,7 +144,7 @@ class TerraformPlanParser:
         Returns:
             PlanSummary with counts and metadata
         """
-        resource_changes = plan_json.get('resource_changes', [])
+        resource_changes = plan_json.get("resource_changes", [])
 
         creates = 0
         updates = 0
@@ -103,18 +152,18 @@ class TerraformPlanParser:
         replaces = 0
 
         for change in resource_changes:
-            actions = change.get('change', {}).get('actions', [])
+            actions = change.get("change", {}).get("actions", [])
 
-            if 'create' in actions and 'delete' in actions:
+            if "create" in actions and "delete" in actions:
                 replaces += 1
-            elif 'create' in actions:
+            elif "create" in actions:
                 creates += 1
-            elif 'update' in actions:
+            elif "update" in actions:
                 updates += 1
-            elif 'delete' in actions:
+            elif "delete" in actions:
                 deletes += 1
 
-        terraform_version = plan_json.get('terraform_version')
+        terraform_version = plan_json.get("terraform_version")
 
         return PlanSummary(
             total_changes=creates + updates + deletes + replaces,
@@ -122,10 +171,10 @@ class TerraformPlanParser:
             updates=updates,
             deletes=deletes,
             replaces=replaces,
-            terraform_version=terraform_version
+            terraform_version=terraform_version,
         )
 
-    def extract_diff_skeleton(self, plan_json: Dict[str, Any]) -> List[ResourceChange]:
+    def extract_diff_skeleton(self, plan_json: dict[str, Any]) -> list[ResourceChange]:
         """
         Extract minimal diff skeleton from plan.
 
@@ -140,47 +189,49 @@ class TerraformPlanParser:
         Returns:
             List of ResourceChange objects
         """
-        resource_changes = plan_json.get('resource_changes', [])
+        resource_changes = plan_json.get("resource_changes", [])
         skeleton = []
 
         for change in resource_changes:
             try:
-                resource_type = change.get('type', 'unknown')
-                address = change.get('address', 'unknown')
-                change_data = change.get('change', {})
-                actions = change_data.get('actions', [])
+                resource_type = change.get("type", "unknown")
+                address = change.get("address", "unknown")
+                change_data = change.get("change", {})
+                actions = change_data.get("actions", [])
 
                 # Determine primary action
-                if 'create' in actions and 'delete' in actions:
-                    action = 'replace'
-                elif 'create' in actions:
-                    action = 'create'
-                elif 'update' in actions:
-                    action = 'update'
-                elif 'delete' in actions:
-                    action = 'delete'
-                elif 'no-op' in actions:
+                if "create" in actions and "delete" in actions:
+                    action = "replace"
+                elif "create" in actions:
+                    action = "create"
+                elif "update" in actions:
+                    action = "update"
+                elif "delete" in actions:
+                    action = "delete"
+                elif "no-op" in actions:
                     continue  # Skip no-op changes
                 else:
-                    action = 'unknown'
+                    action = "unknown"
 
                 # Extract changed paths and diffs
-                before = change_data.get('before', {})
-                after = change_data.get('after', {})
+                before = change_data.get("before", {})
+                after = change_data.get("after", {})
                 attribute_diffs = self._extract_attribute_diffs(before, after)
                 changed_paths = [d.path for d in attribute_diffs]
 
                 # Generate stable hash for resource reference
                 resource_ref = self._hash_resource_ref(address)
 
-                skeleton.append(ResourceChange(
-                    resource_type=resource_type,
-                    action=action,
-                    changed_paths=changed_paths,
-                    attribute_diffs=attribute_diffs,
-                    resource_ref=resource_ref,
-                    resource_address=address
-                ))
+                skeleton.append(
+                    ResourceChange(
+                        resource_type=resource_type,
+                        action=action,
+                        changed_paths=changed_paths,
+                        attribute_diffs=attribute_diffs,
+                        resource_ref=resource_ref,
+                        resource_address=address,
+                    )
+                )
 
             except Exception as e:
                 logger.warning(f"Failed to process resource change: {e}")
@@ -190,11 +241,8 @@ class TerraformPlanParser:
         return skeleton
 
     def _extract_attribute_diffs(
-        self,
-        before: Optional[Dict[str, Any]],
-        after: Optional[Dict[str, Any]],
-        prefix: str = ""
-    ) -> List[AttributeDiff]:
+        self, before: dict[str, Any] | None, after: dict[str, Any] | None, prefix: str = ""
+    ) -> list[AttributeDiff]:
         """
         Recursively extract changed attributes including before/after values.
 
@@ -206,7 +254,7 @@ class TerraformPlanParser:
         Returns:
             List of AttributeDiff objects
         """
-        diffs: List[AttributeDiff] = []
+        diffs: list[AttributeDiff] = []
 
         # Handle None cases
         if before is None:
@@ -237,22 +285,18 @@ class TerraformPlanParser:
                     # Primitive value or list changed
                     # Apply Aggressive Sanitization
                     is_safe = False
-                    
+
                     # Check if the leaf key or any part of the path is in allowlist
-                    for segment in full_path.split('.'):
+                    for segment in full_path.split("."):
                         if segment.lower() in self.safe_attributes:
                             is_safe = True
                             break
-                    
+
                     # Even if in allowlist, check for secrets in strings
                     sanitized_before = self._sanitize_value(before_val) if is_safe else "[REDACTED]"
                     sanitized_after = self._sanitize_value(after_val) if is_safe else "[REDACTED]"
 
-                    diffs.append(AttributeDiff(
-                        path=full_path,
-                        before=sanitized_before,
-                        after=sanitized_after
-                    ))
+                    diffs.append(AttributeDiff(path=full_path, before=sanitized_before, after=sanitized_after))
 
         # Sort by path for consistent results
         diffs.sort(key=lambda x: x.path)
@@ -264,16 +308,16 @@ class TerraformPlanParser:
         """
         if not isinstance(value, str):
             return value
-            
+
         # Don't scan very short strings
         if len(value) < 8:
             return value
-            
+
         for pattern in self.secret_patterns:
             if pattern.search(value):
-                logger.warning(f"SECRET DETECTED: Regexp match found. Redacting value.")
+                logger.warning("SECRET DETECTED: Regexp match found. Redacting value.")
                 return "[SECRET-DETECTED]"
-                
+
         return value
 
     def _hash_resource_ref(self, address: str) -> str:
@@ -286,15 +330,11 @@ class TerraformPlanParser:
         Returns:
             Hashed reference (e.g., res_9f31a02c1b)
         """
-        hash_obj = hashlib.sha256(address.encode('utf-8'))
+        hash_obj = hashlib.sha256(address.encode("utf-8"))
         hash_hex = hash_obj.hexdigest()[:10]
         return f"res_{hash_hex}"
 
-    def get_resource_by_address(
-        self,
-        plan_json: Dict[str, Any],
-        address: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_resource_by_address(self, plan_json: dict[str, Any], address: str) -> dict[str, Any] | None:
         """
         Retrieve full resource change data by address.
 
@@ -305,38 +345,38 @@ class TerraformPlanParser:
         Returns:
             Resource change dict or None if not found
         """
-        for change in plan_json.get('resource_changes', []):
-            if change.get('address') == address:
+        for change in plan_json.get("resource_changes", []):
+            if change.get("address") == address:
                 return change
         return None
 
-    def calculate_plan_hash(self, diff_skeleton: List[ResourceChange]) -> str:
+    def calculate_plan_hash(self, diff_skeleton: list[ResourceChange]) -> str:
         """
         Calculate a stable SHA-256 fingerprint for the plan.
-        
+
         This uses the sanitized diff skeleton (types, actions, and changed paths).
         By sorting the skeleton by resource hash, we ensure identical plans
         produce identical fingerprints regardless of internal JSON ordering.
-        
+
         Args:
             diff_skeleton: Minimal representation of plan changes
-            
+
         Returns:
             SHA-256 hash string
         """
         # Sort by resource_ref to ensure deterministic fingerprint
         sorted_skeleton = sorted(diff_skeleton, key=lambda x: x.resource_ref)
-        
+
         # Serialize only the data that matters for the security vibe
         hashable_data = [
             {
                 "type": c.resource_type,
                 "action": c.action,
                 "paths": sorted(c.changed_paths),
-                "diffs": [d.model_dump() for d in sorted(c.attribute_diffs, key=lambda x: x.path)]
+                "diffs": [d.model_dump() for d in sorted(c.attribute_diffs, key=lambda x: x.path)],
             }
             for c in sorted_skeleton
         ]
-        
+
         skeleton_json = json.dumps(hashable_data, sort_keys=True)
-        return hashlib.sha256(skeleton_json.encode('utf-8')).hexdigest()
+        return hashlib.sha256(skeleton_json.encode("utf-8")).hexdigest()

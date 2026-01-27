@@ -1,8 +1,10 @@
 /**
  * Utility for making authenticated API calls with the internal access code.
  */
+import { getAccessCode, clearAccessCode } from './auth'
+
 export async function authenticatedFetch(url: string, options: RequestInit = {}) {
-    const code = localStorage.getItem('tf_analyzer_code')
+    const code = getAccessCode()
 
     const headers = new Headers(options.headers || {})
     if (code) {
@@ -15,10 +17,10 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
     })
 
     if (response.status === 401) {
-        // Unauthorised - clear the code and reload to trigger the gatekeeper
-        localStorage.removeItem('tf_analyzer_code')
+        // Unauthorized - clear the code and reload to trigger the gatekeeper
+        clearAccessCode()
         window.location.reload()
-        throw new Error('Unauthorised: Invalid access code')
+        throw new Error('Unauthorized: Invalid access code')
     }
 
     return response

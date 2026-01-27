@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import EntryGate from './EntryGate'
+import { storeAccessCode, hasAccessCode } from '@/lib/auth'
 
 interface GatekeeperProps {
     children: React.ReactNode
@@ -11,19 +12,16 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
     const [isUnlocked, setIsUnlocked] = useState<boolean | null>(null)
 
     useEffect(() => {
-        // Check if code exists in localStorage on mount
-        const savedCode = localStorage.getItem('tf_analyzer_code')
-        if (savedCode) {
-            setIsUnlocked(true)
-        } else {
-            setIsUnlocked(false)
-        }
+        // Check if code exists in sessionStorage on mount
+        // Using sessionStorage instead of localStorage for better security
+        // (code is cleared when browser tab is closed)
+        setIsUnlocked(hasAccessCode())
     }, [])
 
     const handleUnlock = (code: string) => {
-        // For now, we just store it. The first API call will verify if it's actually correct.
-        // If the API returns 401, we'll need to clear it (handled in API calls).
-        localStorage.setItem('tf_analyzer_code', code)
+        // Code has already been validated server-side by EntryGate
+        // Now safe to store in session storage
+        storeAccessCode(code)
         setIsUnlocked(true)
     }
 

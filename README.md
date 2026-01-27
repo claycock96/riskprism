@@ -132,7 +132,7 @@ terraform apply tfplan
 🔍 RiskPrism Analyzing Plan...
 
 ═══════════════════════════════════════════════════════
-                  ANALYSIS SUMMARY ⚡ 
+                  ANALYSIS SUMMARY ⚡
 ═══════════════════════════════════════════════════════
 
 Resource Changes:

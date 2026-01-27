@@ -84,7 +84,7 @@ Resource Changes:
 Detected IAM policy document...
 
 ═══════════════════════════════════════════════════════
-                  ANALYSIS SUMMARY 
+                  ANALYSIS SUMMARY
 ═══════════════════════════════════════════════════════
 
 Policy Statements:

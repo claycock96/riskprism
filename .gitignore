@@ -29,6 +29,9 @@ Thumbs.db
 htmlcov/
 .tox/
 test_response.json
+backend_check.json
+final_backend.json
+final_frontend.json
 
 # Environment variables
 .env
@@ -67,3 +70,4 @@ backend/data/
 .agent/
 .gemini/
 .claude/
+frontend/tsconfig.tsbuildinfo

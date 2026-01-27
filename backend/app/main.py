@@ -1,51 +1,54 @@
-from typing import Optional, Dict, Any, List
 import logging
 import os
-from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request, Depends, Header
-from fastapi.middleware.cors import CORSMiddleware
+from datetime import UTC, datetime
 
-from app.parser import TerraformPlanParser
-from app.risk_engine import RiskEngine
-from app.llm_client import LLMClient
-from app.models import AnalyzeRequest, AnalyzeResponse
-from app.session_store import session_store
-from app.database import init_db
-from app.analyzers import TerraformAnalyzer, AnalyzerType
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+
+from app.database import init_db
+from app.llm_client import LLMClient
+from app.models import AnalyzeRequest, AnalyzeResponse
+from app.parser import TerraformPlanParser
+from app.risk_engine import RiskEngine
+from app.session_store import session_store
 
 # Rate Limiter Setup
 limiter = Limiter(key_func=get_remote_address)
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Track application start time
-START_TIME = datetime.now(timezone.utc)
+START_TIME = datetime.now(UTC)
 
 # Security: Internal Access Code
 INTERNAL_ACCESS_CODE = os.getenv("INTERNAL_ACCESS_CODE")
 
-async def verify_internal_code(x_internal_code: Optional[str] = Header(None)):
+# Configurable settings via environment variables
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+RATE_LIMIT_ANALYZE = os.getenv("RATE_LIMIT_ANALYZE", "10/minute")
+RATE_LIMIT_AUTH = os.getenv("RATE_LIMIT_AUTH", "5/minute")
+MAX_PAYLOAD_SIZE_MB = int(os.getenv("MAX_PAYLOAD_SIZE_MB", "10"))
+
+
+async def verify_internal_code(x_internal_code: str | None = Header(None)):
     """
     Dependency to verify the internal access code.
     Note: INTERNAL_ACCESS_CODE is validated at startup - if we reach here, it's configured.
     """
     if x_internal_code != INTERNAL_ACCESS_CODE:
-        logger.warning(f"Unauthorized access attempt. Provided code: {x_internal_code}")
+        logger.warning("Unauthorized access attempt with invalid code")
         raise HTTPException(
-            status_code=401, 
-            detail="Invalid or missing access code. Please enter the team access code."
+            status_code=401, detail="Invalid or missing access code. Please enter the team access code."
         )
     return True
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,7 +60,9 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("INTERNAL_ACCESS_CODE must be configured before starting the server")
 
     if len(INTERNAL_ACCESS_CODE) < 16:
-        logger.warning("SECURITY WARNING: INTERNAL_ACCESS_CODE is less than 16 characters. Consider using a longer, random value.")
+        logger.warning(
+            "SECURITY WARNING: INTERNAL_ACCESS_CODE is less than 16 characters. Consider using a longer, random value."
+        )
 
     # Startup: Initialize database
     logger.info("Initializing database...")
@@ -66,11 +71,12 @@ async def lifespan(app: FastAPI):
     # Shutdown: Cleanup if needed
     pass
 
+
 app = FastAPI(
     title="Security Analysis Platform",
     description="Multi-analyzer security platform: Terraform Plans, IAM Policies, and more",
     version="0.2.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Initialize Rate Limiter
@@ -78,10 +84,10 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-# CORS configuration for local development
+# CORS configuration (configurable via CORS_ORIGINS env var)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js default port
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -94,7 +100,7 @@ llm_client = LLMClient()
 
 
 @app.get("/auth/validate", dependencies=[Depends(verify_internal_code)])
-@limiter.limit("5/minute")
+@limiter.limit(RATE_LIMIT_AUTH)
 async def validate_auth(request: Request):
     """
     Simple endpoint to verify if the provided access code is valid.
@@ -106,11 +112,7 @@ async def validate_auth(request: Request):
 @app.get("/")
 async def root():
     """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "service": "terraform-plan-analyzer",
-        "version": "0.1.0"
-    }
+    return {"status": "healthy", "service": "terraform-plan-analyzer", "version": "0.1.0"}
 
 
 @app.get("/health")
@@ -123,11 +125,11 @@ async def health():
         "components": {
             "parser": {"status": "healthy", "message": "Initialized"},
             "risk_engine": {"status": "healthy", "message": f"{len(risk_engine.rules)} rules loaded"},
-            "llm": {"status": "healthy", "message": "Unknown status"}
+            "llm": {"status": "healthy", "message": "Unknown status"},
         },
-        "version": "0.1.0"
+        "version": "0.1.0",
     }
-    
+
     # Check LLM
     if llm_client.credentials_valid:
         health_status["components"]["llm"]["status"] = "healthy"
@@ -146,20 +148,27 @@ async def health():
 
 @app.post("/analyze", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
 @app.post("/analyze/terraform", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
-@limiter.limit("10/minute")
+@limiter.limit(RATE_LIMIT_ANALYZE)
 async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeRequest):
     """
     Analyze a Terraform plan JSON for security risks and generate explanation.
-    
+
     Endpoints:
     - POST /analyze (backward compatible)
     - POST /analyze/terraform (preferred)
     """
     try:
-        # Security: payload size check (approx 10MB limit)
-        content_length = request.headers.get('content-length')
-        if content_length and int(content_length) > 10 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Payload too large. Maximum size is 10MB.")
+        # Security: payload size check
+        content_length = request.headers.get("content-length")
+        max_size = MAX_PAYLOAD_SIZE_MB * 1024 * 1024
+        if content_length:
+            try:
+                if int(content_length) > max_size:
+                    raise HTTPException(
+                        status_code=413, detail=f"Payload too large. Maximum size is {MAX_PAYLOAD_SIZE_MB}MB."
+                    )
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid Content-Length header")
 
         logger.info(f"Received plan analysis request from {request.client.host}")
 
@@ -176,7 +185,7 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
         risk_findings = risk_engine.analyze(
             parsed_plan,
             diff_skeleton,
-            max_findings=analyze_request.options.max_findings if analyze_request.options else 50
+            max_findings=analyze_request.options.max_findings if analyze_request.options else 50,
         )
 
         # Step 4: Generate summary stats
@@ -185,32 +194,28 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
         # Step 5: Check Cache (Plan Fingerprinting)
         plan_hash = plan_parser.calculate_plan_hash(diff_skeleton)
         cached_analysis = await session_store.get_by_plan_hash(plan_hash)
-        
+
         if cached_analysis:
             logger.info(f"CACHE HIT: Serving cached analysis for plan hash {plan_hash}")
-            
+
             # Respect strict_no_store if specified in request
             no_store = analyze_request.options.strict_no_store if analyze_request.options else False
-            
+
             if not no_store:
                 # Ensure session ID is updated for this new 'request' even if data is cached
                 user_ip = request.client.host if request.client else "unknown"
                 user_agent = request.headers.get("user-agent", "unknown")
-                
+
                 # Save a new session record (shared analysis, new trace)
                 try:
-                    session_id = await session_store.save(
-                        cached_analysis,
-                        user_ip=user_ip,
-                        user_agent=user_agent
-                    )
+                    session_id = await session_store.save(cached_analysis, user_ip=user_ip, user_agent=user_agent)
                     cached_analysis.session_id = session_id
                 except Exception as e:
                     logger.warning(f"Failed to save cached analysis trace: {e}")
             else:
                 logger.info("strict_no_store: skipping session trace for cache hit")
                 cached_analysis.session_id = None
-                
+
             return cached_analysis
 
         # Step 6: Create sanitized payload for LLM
@@ -233,20 +238,16 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
             explanation=llm_response["explanation"],
             pr_comment=llm_response["pr_comment"],
             plan_hash=plan_hash,
-            cached=False
+            cached=False,
         )
 
         # Step 9: Save to database with audit metadata (unless no_store)
         no_store = analyze_request.options.strict_no_store if analyze_request.options else False
-        
+
         if not no_store:
             user_ip = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
-            session_id = await session_store.save(
-                response,
-                user_ip=user_ip,
-                user_agent=user_agent
-            )
+            session_id = await session_store.save(response, user_ip=user_ip, user_agent=user_agent)
             response.session_id = session_id
         else:
             logger.info("strict_no_store: skipping session storage")
@@ -270,15 +271,15 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
 # IAM Policy Analysis Endpoint
 # ============================================================================
 
-from app.models import IAMAnalyzeRequest, IAMAnalyzeResponse, IAMSummary
 from app.analyzers import IAMPolicyAnalyzer
+from app.models import IAMAnalyzeRequest
 
 # Initialize IAM analyzer
 iam_analyzer = IAMPolicyAnalyzer()
 
 
 @app.post("/analyze/iam", response_model=AnalyzeResponse, dependencies=[Depends(verify_internal_code)])
-@limiter.limit("10/minute")
+@limiter.limit(RATE_LIMIT_ANALYZE)
 async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeRequest):
     """
     Analyze an IAM Policy JSON for security risks.
@@ -291,9 +292,16 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
     """
     try:
         # Security: payload size check
-        content_length = request.headers.get('content-length')
-        if content_length and int(content_length) > 10 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Payload too large. Maximum size is 10MB.")
+        content_length = request.headers.get("content-length")
+        max_size = MAX_PAYLOAD_SIZE_MB * 1024 * 1024
+        if content_length:
+            try:
+                if int(content_length) > max_size:
+                    raise HTTPException(
+                        status_code=413, detail=f"Payload too large. Maximum size is {MAX_PAYLOAD_SIZE_MB}MB."
+                    )
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid Content-Length header")
 
         logger.info(f"Received IAM policy analysis request from {request.client.host}")
 
@@ -307,20 +315,16 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
 
         if cached_analysis:
             logger.info(f"CACHE HIT: Serving cached IAM analysis for policy hash {policy_hash}")
-            
+
             no_store = analyze_request.options.strict_no_store if analyze_request.options else False
-            
+
             if not no_store:
                 # Create new session for this cached result
                 user_ip = request.client.host if request.client else "unknown"
                 user_agent = request.headers.get("user-agent", "unknown")
 
                 try:
-                    session_id = await session_store.save(
-                        cached_analysis,
-                        user_ip=user_ip,
-                        user_agent=user_agent
-                    )
+                    session_id = await session_store.save(cached_analysis, user_ip=user_ip, user_agent=user_agent)
                     cached_analysis.session_id = session_id
                 except Exception as e:
                     logger.warning(f"Failed to save cached analysis trace: {e}")
@@ -348,13 +352,14 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
 
         # Step 7: Adapt to AnalyzeResponse format (match frontend adaptation)
         from app.models import PlanSummary
+
         adapted_summary = PlanSummary(
-            total_changes=summary_dict['total_statements'],
-            creates=summary_dict['allow_statements'],
+            total_changes=summary_dict["total_statements"],
+            creates=summary_dict["allow_statements"],
             updates=0,
-            deletes=summary_dict['deny_statements'],
+            deletes=summary_dict["deny_statements"],
             replaces=0,
-            terraform_version=f"IAM Policy v{summary_dict['policy_version']}"
+            terraform_version=f"IAM Policy v{summary_dict['policy_version']}",
         )
 
         response = AnalyzeResponse(
@@ -365,21 +370,17 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
             pr_comment=llm_response["pr_comment"],
             plan_hash=policy_hash,
             cached=False,
-            analyzer_type='iam'
+            analyzer_type="iam",
         )
 
         # Step 8: Save to session store (unless no_store)
         no_store = analyze_request.options.strict_no_store if analyze_request.options else False
-        
+
         if not no_store:
             user_ip = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
 
-            session_id = await session_store.save(
-                response,
-                user_ip=user_ip,
-                user_agent=user_agent
-            )
+            session_id = await session_store.save(response, user_ip=user_ip, user_agent=user_agent)
             response.session_id = session_id
         else:
             logger.info("strict_no_store: skipping IAM session storage")
@@ -408,10 +409,7 @@ async def get_results(session_id: str):
 
         if analysis is None:
             logger.warning(f"Session not found or expired: {session_id}")
-            raise HTTPException(
-                status_code=404,
-                detail="Session not found or expired. Sessions expire after 24 hours."
-            )
+            raise HTTPException(status_code=404, detail="Session not found or expired. Sessions expire after 24 hours.")
 
         return analysis
     except HTTPException:
@@ -421,7 +419,7 @@ async def get_results(session_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to retrieve session: {str(e)}")
 
 
-@app.get("/history", response_model=List[AnalyzeResponse], dependencies=[Depends(verify_internal_code)])
+@app.get("/history", response_model=list[AnalyzeResponse], dependencies=[Depends(verify_internal_code)])
 async def get_history(limit: int = 20):
     """Retrieve recent analysis results."""
     return await session_store.get_all(limit=limit)
@@ -431,11 +429,12 @@ async def get_history(limit: int = 20):
 async def get_session_stats():
     """Get session storage statistics and application uptime."""
     stats = await session_store.stats()
-    uptime = datetime.now(timezone.utc) - START_TIME
+    uptime = datetime.now(UTC) - START_TIME
     stats["uptime_seconds"] = int(uptime.total_seconds())
     return stats
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

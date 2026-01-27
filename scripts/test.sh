@@ -37,7 +37,7 @@ echo "==============================="
 if [ "$RUN_BACKEND" = true ]; then
     echo ""
     echo "🐳 [1] Running Backend Tests (Pytest inside container)..."
-    
+
     # Check container
     if ! docker ps | grep -q terraform-webapp-backend-1; then
         echo "❌ Error: Backend container is not running."
@@ -52,7 +52,7 @@ if [ "$RUN_BACKEND" = true ]; then
     # API Integration Tests (Curl)
     echo ""
     echo "🌐 [2] Running API Integration Tests (Curl)..."
-    
+
     API_URL="http://localhost:8000"
     if [ -f .env ]; then
         AUTH_CODE=$(grep INTERNAL_ACCESS_CODE .env | cut -d '=' -f 2)
@@ -67,7 +67,7 @@ if [ "$RUN_BACKEND" = true ]; then
             -H "Content-Type: application/json" \
             -H "X-Internal-Code: ${AUTH_CODE}" \
             -d "${REQUEST_PAYLOAD}")
-        
+
         if [ "$HTTP_CODE" -eq 200 ]; then
             echo "     ✅ IAM Analysis Success (HTTP 200)"
         else

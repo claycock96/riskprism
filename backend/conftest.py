@@ -1,4 +1,5 @@
 import os
+
 # Set test environment defaults BEFORE importing app
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["INTERNAL_ACCESS_CODE"] = "test-secret"
@@ -6,17 +7,21 @@ os.environ["LLM_PROVIDER"] = "mock"
 
 import pytest
 from httpx import AsyncClient
+
 from app.database import init_db
 from app.main import app, limiter
+
 
 @pytest.fixture(autouse=True)
 async def setup_db():
     await init_db()
     yield
 
+
 @pytest.fixture
 def anyio_backend():
-    return 'asyncio'
+    return "asyncio"
+
 
 @pytest.fixture(autouse=True)
 def reset_rate_limiter():
@@ -29,6 +34,7 @@ def reset_rate_limiter():
     # Restore original state
     limiter.enabled = original_enabled
     limiter.reset()
+
 
 @pytest.fixture
 async def client(anyio_backend):
@@ -45,6 +51,7 @@ async def client(anyio_backend):
 def auth_headers():
     return {"X-Internal-Code": "test-secret"}
 
+
 @pytest.fixture
 def mock_plan_json():
     return {
@@ -54,10 +61,7 @@ def mock_plan_json():
             {
                 "address": "aws_security_group.test",
                 "type": "aws_security_group",
-                "change": {
-                    "actions": ["create"],
-                    "after": {"ingress": []}
-                }
+                "change": {"actions": ["create"], "after": {"ingress": []}},
             }
-        ]
+        ],
     }

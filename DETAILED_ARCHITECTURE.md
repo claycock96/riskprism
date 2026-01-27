@@ -104,7 +104,7 @@ The parser's denylist automatically strips values for any keys matching sensitiv
 - `password`, `secret`, `token`, `apikey`, `private_key`, `user_data`, and more.
 
 ### 2. Command: Inspecting the Internal Payload
-You can verify the exact payload sent to the LLM by enabling `DEBUG` logs in the backend. 
+You can verify the exact payload sent to the LLM by enabling `DEBUG` logs in the backend.
 
 **Run this command to see the size and structure of what goes to the AI:**
 ```bash

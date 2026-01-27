@@ -1,7 +1,9 @@
-import os
 import logging
+import os
+
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from .models import Base
 
 logger = logging.getLogger(__name__)
@@ -14,8 +16,11 @@ engine = create_async_engine(
     connect_args={
         "check_same_thread": False,
         "timeout": 5.0,  # 5 second busy timeout
-    } if "sqlite" in DATABASE_URL else {}
+    }
+    if "sqlite" in DATABASE_URL
+    else {},
 )
+
 
 # SQLite optimization: Enable WAL mode for concurrency
 @event.listens_for(engine.sync_engine, "connect")
@@ -26,11 +31,9 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.close()
 
-async_session = async_sessionmaker(
-    engine, 
-    class_=AsyncSession, 
-    expire_on_commit=False
-)
+
+async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
 
 async def init_db():
     """Initialize database and create tables if they don't exist"""
@@ -44,7 +47,6 @@ async def init_db():
 
         async with engine.begin() as conn:
             # Import models to register them with Base
-            from .models import AnalysisSession
             await conn.run_sync(Base.metadata.create_all)
             logger.info("Database tables initialized successfully")
     except Exception as e:

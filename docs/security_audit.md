@@ -26,7 +26,7 @@
 
 ### 1. Framework-Locked Dependencies (Backend)
 - **Vulnerability**: `starlette` (HIGH)
-- **Constraint**: `fastapi` 0.115.8 strictly requires `starlette < 0.46.0`. 
+- **Constraint**: `fastapi` 0.115.8 strictly requires `starlette < 0.46.0`.
 - **Action**: I have bumped Starlette to `0.45.3` (highest allowed), but the fix for the latest HIGH finding requires `0.49.1`. This is a framework-level debt that will be resolved when FastAPI releases a compatible version.
 
 ### 2. Unpatched OS Packages (Backend)

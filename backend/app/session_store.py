@@ -3,15 +3,21 @@ Persistent session storage using SQLite.
 Stores sanitized analysis results for sharing and historical review.
 """
 
-import uuid
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, List
-from sqlalchemy import select, delete, func, update
-from .models import AnalyzeResponse, AnalysisSession
+import os
+import uuid
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import delete, func, select
+
 from .database import async_session
+from .models import AnalysisSession, AnalyzeResponse
 
 logger = logging.getLogger(__name__)
+
+# Configurable session store settings via environment variables
+SESSION_MAX_SIZE = int(os.getenv("SESSION_MAX_SIZE", "1000"))
+SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "720"))
 
 
 def _ensure_utc(dt: datetime) -> datetime:
@@ -19,7 +25,7 @@ def _ensure_utc(dt: datetime) -> datetime:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -35,43 +41,39 @@ class SessionStore:
         self.max_size = max_size
         self.ttl = timedelta(hours=ttl_hours)
 
-    async def save(self, analysis: AnalyzeResponse, user_ip: str = None, 
-                   user_agent: str = None, request_metadata: Dict = None) -> str:
+    async def save(
+        self, analysis: AnalyzeResponse, user_ip: str = None, user_agent: str = None, request_metadata: dict = None
+    ) -> str:
         """
         Save an analysis result and return a session ID.
         """
         session_id = str(uuid.uuid4())
-        
+
         async with async_session() as session:
             try:
                 # Create ORM record with audit metadata
                 record = AnalysisSession.from_analyze_response(
-                    analysis, 
-                    session_id,
-                    user_ip=user_ip,
-                    user_agent=user_agent,
-                    request_metadata=request_metadata
+                    analysis, session_id, user_ip=user_ip, user_agent=user_agent, request_metadata=request_metadata
                 )
                 session.add(record)
-                
-                # Check for capacity and evict oldest if necessary
-                # Count current sessions
+
+                # Evict oldest entries if at capacity (atomic operation to avoid race conditions)
+                # Using a subquery to find and delete in one statement
+                oldest_subquery = (
+                    select(AnalysisSession.session_id)
+                    .order_by(AnalysisSession.accessed_at.asc())
+                    .limit(1)
+                    .correlate(None)
+                    .scalar_subquery()
+                )
+
+                # Count and conditionally delete in a transaction
                 result = await session.execute(select(func.count()).select_from(AnalysisSession))
                 count = result.scalar() or 0
-                
+
                 if count >= self.max_size:
-                    # Find and delete oldest by accessed_at
-                    oldest = await session.execute(
-                        select(AnalysisSession.session_id)
-                        .order_by(AnalysisSession.accessed_at.asc())
-                        .limit(1)
-                    )
-                    oldest_id = oldest.scalar()
-                    if oldest_id:
-                        await session.execute(
-                            delete(AnalysisSession).where(AnalysisSession.session_id == oldest_id)
-                        )
-                
+                    await session.execute(delete(AnalysisSession).where(AnalysisSession.session_id == oldest_subquery))
+
                 await session.commit()
                 return session_id
             except Exception as e:
@@ -79,39 +81,37 @@ class SessionStore:
                 await session.rollback()
                 raise
 
-    async def get(self, session_id: str) -> Optional[AnalyzeResponse]:
+    async def get(self, session_id: str) -> AnalyzeResponse | None:
         """
         Retrieve an analysis result by session ID.
         Returns None if not found or expired.
         """
         async with async_session() as session:
             try:
-                result = await session.execute(
-                    select(AnalysisSession).where(AnalysisSession.session_id == session_id)
-                )
+                result = await session.execute(select(AnalysisSession).where(AnalysisSession.session_id == session_id))
                 record = result.scalar_one_or_none()
-                
+
                 if not record:
                     return None
 
                 # Check if expired
                 created_at_utc = _ensure_utc(record.created_at)
-                age = datetime.now(timezone.utc) - created_at_utc
+                age = datetime.now(UTC) - created_at_utc
                 if age > self.ttl:
                     await session.delete(record)
                     await session.commit()
                     return None
 
                 # Update access time
-                record.accessed_at = datetime.now(timezone.utc)
+                record.accessed_at = datetime.now(UTC)
                 await session.commit()
-                
+
                 return record.to_analyze_response()
             except Exception as e:
                 logger.error(f"Failed to get session {session_id}: {e}")
                 return None
 
-    async def get_by_plan_hash(self, plan_hash: str) -> Optional[AnalyzeResponse]:
+    async def get_by_plan_hash(self, plan_hash: str) -> AnalyzeResponse | None:
         """
         Retrieve the latest analysis result for a given plan hash.
         Returns None if not found or expired.
@@ -126,18 +126,18 @@ class SessionStore:
                     .limit(1)
                 )
                 record = result.scalar_one_or_none()
-                
+
                 if not record:
                     return None
 
                 # Check if expired
                 created_at_utc = _ensure_utc(record.created_at)
-                age = datetime.now(timezone.utc) - created_at_utc
+                age = datetime.now(UTC) - created_at_utc
                 if age > self.ttl:
                     return None
 
                 # Update access time
-                record.accessed_at = datetime.now(timezone.utc)
+                record.accessed_at = datetime.now(UTC)
                 await session.commit()
 
                 return record.to_analyze_response()
@@ -145,16 +145,14 @@ class SessionStore:
                 logger.error(f"Failed to get session by hash {plan_hash}: {e}")
                 return None
 
-    async def get_all(self, limit: int = 20) -> List[AnalyzeResponse]:
+    async def get_all(self, limit: int = 20) -> list[AnalyzeResponse]:
         """
         Retrieve latest analysis results.
         """
         async with async_session() as session:
             try:
                 result = await session.execute(
-                    select(AnalysisSession)
-                    .order_by(AnalysisSession.created_at.desc())
-                    .limit(limit)
+                    select(AnalysisSession).order_by(AnalysisSession.created_at.desc()).limit(limit)
                 )
                 records = result.scalars().all()
                 return [r.to_analyze_response() for r in records]
@@ -166,14 +164,12 @@ class SessionStore:
         """
         Remove all expired entries.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expiry_limit = now - self.ttl
-        
+
         async with async_session() as session:
             try:
-                result = await session.execute(
-                    delete(AnalysisSession).where(AnalysisSession.created_at < expiry_limit)
-                )
+                result = await session.execute(delete(AnalysisSession).where(AnalysisSession.created_at < expiry_limit))
                 deleted_count = result.rowcount
                 await session.commit()
                 return deleted_count
@@ -182,7 +178,7 @@ class SessionStore:
                 await session.rollback()
                 return 0
 
-    async def stats(self) -> Dict:
+    async def stats(self) -> dict:
         """
         Get storage statistics.
         """
@@ -190,11 +186,11 @@ class SessionStore:
             try:
                 count_result = await session.execute(select(func.count()).select_from(AnalysisSession))
                 total_sessions = count_result.scalar() or 0
-                
+
                 oldest_result = await session.execute(select(func.min(AnalysisSession.created_at)))
                 oldest_date = oldest_result.scalar()
-                
-                now = datetime.now(timezone.utc)
+
+                now = datetime.now(UTC)
                 oldest_age_hours = 0
                 if oldest_date:
                     oldest_date_utc = _ensure_utc(oldest_date)
@@ -213,9 +209,9 @@ class SessionStore:
                     "max_size": self.max_size,
                     "ttl_hours": self.ttl.total_seconds() / 3600,
                     "oldest_age_hours": 0,
-                    "error": str(e)
+                    "error": str(e),
                 }
 
 
 # Global session store instance (singleton)
-session_store = SessionStore(max_size=1000, ttl_hours=720)
+session_store = SessionStore(max_size=SESSION_MAX_SIZE, ttl_hours=SESSION_TTL_HOURS)
