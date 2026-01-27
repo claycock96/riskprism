@@ -21,8 +21,13 @@ def anyio_backend():
 @pytest.fixture(autouse=True)
 def reset_rate_limiter():
     """Reset rate limiter state before each test to avoid cross-test pollution."""
+    # Store original state and disable for most tests
+    original_enabled = limiter.enabled
+    limiter.enabled = False
     limiter.reset()
     yield
+    # Restore original state
+    limiter.enabled = original_enabled
     limiter.reset()
 
 @pytest.fixture

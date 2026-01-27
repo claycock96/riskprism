@@ -17,13 +17,17 @@ def anyio_backend():
 
 @pytest.fixture
 async def rate_limit_client(anyio_backend):
-    """Client without auto rate-limit reset for testing rate limits."""
+    """Client with rate limiting enabled for testing rate limits."""
     import os
     os.environ["INTERNAL_ACCESS_CODE"] = "test-secret"
-    # Reset limiter at start of test
+    # Enable and reset limiter for rate limit tests
+    limiter.enabled = True
     limiter.reset()
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
+    # Cleanup - disable again for other tests
+    limiter.enabled = False
+    limiter.reset()
 
 
 @pytest.fixture
