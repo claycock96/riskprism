@@ -7,7 +7,7 @@ os.environ["LLM_PROVIDER"] = "mock"
 import pytest
 from httpx import AsyncClient
 from app.database import init_db
-from app.main import app
+from app.main import app, limiter
 
 @pytest.fixture(autouse=True)
 async def setup_db():
@@ -17,6 +17,13 @@ async def setup_db():
 @pytest.fixture
 def anyio_backend():
     return 'asyncio'
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset rate limiter state before each test to avoid cross-test pollution."""
+    limiter.reset()
+    yield
+    limiter.reset()
 
 @pytest.fixture
 async def client(anyio_backend):
