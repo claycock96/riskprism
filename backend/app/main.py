@@ -185,20 +185,28 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
         
         if cached_analysis:
             logger.info(f"CACHE HIT: Serving cached analysis for plan hash {plan_hash}")
-            # Ensure session ID is updated for this new 'request' even if data is cached
-            user_ip = request.client.host if request.client else "unknown"
-            user_agent = request.headers.get("user-agent", "unknown")
             
-            # Save a new session record (shared analysis, new trace)
-            try:
-                session_id = await session_store.save(
-                    cached_analysis,
-                    user_ip=user_ip,
-                    user_agent=user_agent
-                )
-                cached_analysis.session_id = session_id
-            except Exception as e:
-                logger.warning(f"Failed to save cached analysis trace: {e}")
+            # Respect strict_no_store if specified in request
+            no_store = analyze_request.options.strict_no_store if analyze_request.options else False
+            
+            if not no_store:
+                # Ensure session ID is updated for this new 'request' even if data is cached
+                user_ip = request.client.host if request.client else "unknown"
+                user_agent = request.headers.get("user-agent", "unknown")
+                
+                # Save a new session record (shared analysis, new trace)
+                try:
+                    session_id = await session_store.save(
+                        cached_analysis,
+                        user_ip=user_ip,
+                        user_agent=user_agent
+                    )
+                    cached_analysis.session_id = session_id
+                except Exception as e:
+                    logger.warning(f"Failed to save cached analysis trace: {e}")
+            else:
+                logger.info("strict_no_store: skipping session trace for cache hit")
+                cached_analysis.session_id = None
                 
             return cached_analysis
 
@@ -225,18 +233,24 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
             cached=False
         )
 
-        # Step 9: Save to database with audit metadata
-        user_ip = request.client.host if request.client else "unknown"
-        user_agent = request.headers.get("user-agent", "unknown")
+        # Step 9: Save to database with audit metadata (unless no_store)
+        no_store = analyze_request.options.strict_no_store if analyze_request.options else False
         
-        session_id = await session_store.save(
-            response,
-            user_ip=user_ip,
-            user_agent=user_agent
-        )
-        response.session_id = session_id
+        if not no_store:
+            user_ip = request.client.host if request.client else "unknown"
+            user_agent = request.headers.get("user-agent", "unknown")
+            session_id = await session_store.save(
+                response,
+                user_ip=user_ip,
+                user_agent=user_agent
+            )
+            response.session_id = session_id
+        else:
+            logger.info("strict_no_store: skipping session storage")
+            session_id = None
+            response.session_id = None
 
-        logger.info(f"Analysis complete. Found {len(risk_findings)} risks. Session ID: {session_id}")
+        logger.info(f"Analysis complete. Found {len(risk_findings)} risks. Session ID: {session_id or 'NONE'}")
         return response
 
     except HTTPException:
@@ -290,19 +304,26 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
 
         if cached_analysis:
             logger.info(f"CACHE HIT: Serving cached IAM analysis for policy hash {policy_hash}")
-            # Create new session for this cached result
-            user_ip = request.client.host if request.client else "unknown"
-            user_agent = request.headers.get("user-agent", "unknown")
+            
+            no_store = analyze_request.options.strict_no_store if analyze_request.options else False
+            
+            if not no_store:
+                # Create new session for this cached result
+                user_ip = request.client.host if request.client else "unknown"
+                user_agent = request.headers.get("user-agent", "unknown")
 
-            try:
-                session_id = await session_store.save(
-                    cached_analysis,
-                    user_ip=user_ip,
-                    user_agent=user_agent
-                )
-                cached_analysis.session_id = session_id
-            except Exception as e:
-                logger.warning(f"Failed to save cached analysis trace: {e}")
+                try:
+                    session_id = await session_store.save(
+                        cached_analysis,
+                        user_ip=user_ip,
+                        user_agent=user_agent
+                    )
+                    cached_analysis.session_id = session_id
+                except Exception as e:
+                    logger.warning(f"Failed to save cached analysis trace: {e}")
+            else:
+                logger.info("strict_no_store: skipping IAM session trace for cache hit")
+                cached_analysis.session_id = None
 
             return cached_analysis
 
@@ -344,18 +365,25 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
             analyzer_type='iam'
         )
 
-        # Step 8: Save to session store
-        user_ip = request.client.host if request.client else "unknown"
-        user_agent = request.headers.get("user-agent", "unknown")
+        # Step 8: Save to session store (unless no_store)
+        no_store = analyze_request.options.strict_no_store if analyze_request.options else False
+        
+        if not no_store:
+            user_ip = request.client.host if request.client else "unknown"
+            user_agent = request.headers.get("user-agent", "unknown")
 
-        session_id = await session_store.save(
-            response,
-            user_ip=user_ip,
-            user_agent=user_agent
-        )
-        response.session_id = session_id
+            session_id = await session_store.save(
+                response,
+                user_ip=user_ip,
+                user_agent=user_agent
+            )
+            response.session_id = session_id
+        else:
+            logger.info("strict_no_store: skipping IAM session storage")
+            session_id = None
+            response.session_id = None
 
-        logger.info(f"IAM analysis complete. Found {len(risk_findings)} risks. Session ID: {session_id}")
+        logger.info(f"IAM analysis complete. Found {len(risk_findings)} risks. Session ID: {session_id or 'NONE'}")
         return response
 
     except HTTPException:

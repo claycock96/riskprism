@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from typing import Dict, Any, List, Set, Optional
 import logging
 
@@ -21,11 +22,40 @@ class TerraformPlanParser:
     """
 
     def __init__(self):
+        # Denylist is still used for immediate exclusion of keys
         self.sensitive_keys = {
             'password', 'passwd', 'secret', 'token', 'apikey', 'api_key',
             'access_key', 'secret_key', 'private_key', 'client_secret',
             'certificate', 'cert', 'key_material', 'user_data', 'bootstrap'
         }
+        
+        # Allowlist of attributes where the VALUE is considered safe to send to LLM/Store
+        self.safe_attributes = {
+            'type', 'action', 'id', 'name', 'resource_type', 'resource_address',
+            'severity', 'risk_id', 'recommendation', 'total_changes', 'creates',
+            'updates', 'deletes', 'replaces', 'terraform_version',
+            # Networking
+            'cidr_blocks', 'ipv6_cidr_blocks', 'protocol', 'from_port', 'to_port',
+            'egress', 'ingress', 'self', 'description', # Description can be risky but often useful
+            # RDS / DB
+            'engine', 'engine_version', 'instance_class', 'multi_az', 'publicly_accessible',
+            'storage_type', 'allocated_storage', 'database_name',
+            # S3
+            'acl', 'force_destroy', 'versioning_configuration', 'mfa_delete',
+            # Compute
+            'ami', 'instance_type', 'key_name', 'monitoring', 'ebs_optimized',
+            'architecture', 'image_id', 'runtime', 'handler', 'memory_size', 'timeout'
+        }
+
+        # Regex patterns for common secrets to catch them even in "safe" fields
+        self.secret_patterns = [
+            re.compile(r'(?i)key-[a-zA-Z0-9]{20,}'), # Generic key-like string
+            re.compile(r'(?i)secret[_-]?key[:=]\s*[^\s]{10,}'),
+            re.compile(r'(?i)password[:=]\s*[^\s]{8,}'),
+            re.compile(r'AKIA[0-9A-Z]{16}'), # AWS Access Key
+            re.compile(r'[a-zA-Z0-9+/]{40}'), # AWS Secret Key (approx)
+            re.compile(r'sk_live_[0-9a-zA-Z]{24}'), # Stripe Secret Key
+        ]
 
     def parse(self, plan_json: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -200,16 +230,46 @@ class TerraformPlanParser:
                     diffs.extend(nested_diffs)
                 else:
                     # Primitive value or list changed
-                    # For lists, we currently record the whole container if it changed
+                    # Apply Aggressive Sanitization
+                    is_safe = False
+                    
+                    # Check if the leaf key or any part of the path is in allowlist
+                    for segment in full_path.split('.'):
+                        if segment.lower() in self.safe_attributes:
+                            is_safe = True
+                            break
+                    
+                    # Even if in allowlist, check for secrets in strings
+                    sanitized_before = self._sanitize_value(before_val) if is_safe else "[REDACTED]"
+                    sanitized_after = self._sanitize_value(after_val) if is_safe else "[REDACTED]"
+
                     diffs.append(AttributeDiff(
                         path=full_path,
-                        before=before_val,
-                        after=after_val
+                        before=sanitized_before,
+                        after=sanitized_after
                     ))
 
         # Sort by path for consistent results
         diffs.sort(key=lambda x: x.path)
         return diffs
+
+    def _sanitize_value(self, value: Any) -> Any:
+        """
+        Scan string values for potential secrets and redact them.
+        """
+        if not isinstance(value, str):
+            return value
+            
+        # Don't scan very short strings
+        if len(value) < 8:
+            return value
+            
+        for pattern in self.secret_patterns:
+            if pattern.search(value):
+                logger.warning(f"SECRET DETECTED: Regexp match found. Redacting value.")
+                return "[SECRET-DETECTED]"
+                
+        return value
 
     def _hash_resource_ref(self, address: str) -> str:
         """
@@ -267,7 +327,8 @@ class TerraformPlanParser:
             {
                 "type": c.resource_type,
                 "action": c.action,
-                "paths": sorted(c.changed_paths)
+                "paths": sorted(c.changed_paths),
+                "diffs": [d.model_dump() for d in sorted(c.attribute_diffs, key=lambda x: x.path)]
             }
             for c in sorted_skeleton
         ]

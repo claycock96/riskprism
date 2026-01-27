@@ -7,10 +7,14 @@ Quick command-line tool for analyzing infrastructure and IAM risk during local d
 ### Option 1: Add to PATH (Recommended)
 
 ```bash
-# From the terraform-webapp directory
-sudo cp scripts/riskprism /usr/local/bin/
-# Or create a symlink
-sudo ln -s $(pwd)/scripts/riskprism /usr/local/bin/riskprism
+# Create local bin directory if it doesn't exist
+mkdir -p ~/.local/bin
+
+# Copy the script
+cp scripts/riskprism ~/.local/bin/
+
+# Ensure ~/.local/bin is in your PATH (add to .zshrc or .bashrc if needed)
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### Option 2: Use Directly
@@ -39,6 +43,9 @@ terraform plan -out=tfplan
 
 # 2. Analyze the plan
 riskprism tfplan
+
+# 3. Analyze without saving to server (Privacy mode)
+riskprism -n tfplan
 ```
 
 ### IAM Policy Analysis
@@ -277,10 +284,15 @@ Ensure you have mapped your `INTERNAL_ACCESS_CODE` if applicable:
 export INTERNAL_ACCESS_CODE=your-secret-code
 ```
 
-### Usage
+### Options
+
+- `-n`, `--no-store`: Disable session storage on the server. The analysis will be performed, but no data will be saved in the database or cache.
+- `-u`, `--api-url`: Specify a custom API URL (default: `http://localhost:8000`).
+
+### Basic Usage
 
 ```bash
-./scripts/riskprism <plan-file> [api-url]
+riskprism [options] <plan-or-policy-file> [api-url]
 ```
 
 #### Examples

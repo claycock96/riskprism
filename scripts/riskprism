@@ -25,26 +25,51 @@ log_color() {
     printf "${color}%b${NC}\n" "$*"
 }
 
-# Default API URL
-API_URL="${2:-http://localhost:8000}"
+# Default values
+API_URL="http://localhost:8000"
+STRICT_NO_STORE=false
+PLAN_FILE=""
+
+# Simple flag parsing
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -n|--no-store)
+            STRICT_NO_STORE=true
+            shift
+            ;;
+        -u|--api-url)
+            API_URL="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: riskprism [options] <file> [api-url]"
+            echo ""
+            echo "Options:"
+            echo "  -n, --no-store    Disable session storage on the server"
+            echo "  -u, --api-url URL Specify the API URL (default: http://localhost:8000)"
+            echo "  -h, --help        Show this help message"
+            echo ""
+            echo "Documentation: CLI_USAGE.md"
+            exit 0
+            ;;
+        *)
+            if [ -z "$PLAN_FILE" ]; then
+                PLAN_FILE="$1"
+            else
+                # If PLAN_FILE is already set, treat this as API_URL for backward compat
+                API_URL="$1"
+            fi
+            shift
+            ;;
+    esac
+done
 
 # Check if file provided
-if [ -z "$1" ]; then
-    echo "Usage: riskprism <file> [api-url]"
-    echo ""
-    echo "Documentation: CLI_USAGE.md"
-    echo ""
-    echo "Examples (Terraform):"
-    echo "  riskprism tfplan                    # Binary plan file"
-    echo "  riskprism plan.json                 # JSON plan file"
-    echo ""
-    echo "Examples (IAM):"
-    echo "  riskprism policy.json               # Standalone IAM policy"
-    echo ""
+if [ -z "$PLAN_FILE" ]; then
+    echo "Usage: riskprism [options] <file> [api-url]"
+    echo "Try 'riskprism --help' for more information."
     exit 1
 fi
-
-PLAN_FILE=$1
 
 # Check if plan file exists
 if [ ! -f "$PLAN_FILE" ]; then
@@ -85,7 +110,8 @@ if jq -e '(.Version == "2012-10-17") or .Statement' "$PLAN_FILE" >/dev/null 2>&1
     echo "Detected IAM policy document..."
     FILE_CONTENT=$(cat "$PLAN_FILE")
     ENDPOINT="/analyze/iam"
-    REQUEST_BODY=$(jq -n --argjson policy "$FILE_CONTENT" '{policy: $policy}')
+    REQUEST_BODY=$(jq -n --argjson policy "$FILE_CONTENT" --argjson no_store "$STRICT_NO_STORE" \
+        '{policy: $policy, options: {strict_no_store: $no_store}}')
     CHANGE_LABEL="Policy Statements"
     PRIMARY_ACTION_LABEL="Allow"
     SECONDARY_ACTION_LABEL="Deny"
@@ -94,7 +120,8 @@ elif jq empty "$PLAN_FILE" 2>/dev/null; then
     echo "Reading Terraform plan JSON..."
     FILE_CONTENT=$(cat "$PLAN_FILE")
     ENDPOINT="/analyze"
-    REQUEST_BODY=$(jq -n --argjson plan "$FILE_CONTENT" '{plan_json: $plan}')
+    REQUEST_BODY=$(jq -n --argjson plan "$FILE_CONTENT" --argjson no_store "$STRICT_NO_STORE" \
+        '{plan_json: $plan, options: {strict_no_store: $no_store}}')
     CHANGE_LABEL="Resource Changes"
     PRIMARY_ACTION_LABEL="Creates"
     SECONDARY_ACTION_LABEL="Deletes"
@@ -109,7 +136,8 @@ else
         exit 1
     fi
     ENDPOINT="/analyze"
-    REQUEST_BODY=$(jq -n --argjson plan "$FILE_CONTENT" '{plan_json: $plan}')
+    REQUEST_BODY=$(jq -n --argjson plan "$FILE_CONTENT" --argjson no_store "$STRICT_NO_STORE" \
+        '{plan_json: $plan, options: {strict_no_store: $no_store}}')
     CHANGE_LABEL="Resource Changes"
     PRIMARY_ACTION_LABEL="Creates"
     SECONDARY_ACTION_LABEL="Deletes"

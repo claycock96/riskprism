@@ -46,6 +46,16 @@ class IAMPolicyAnalyzer(BaseAnalyzer):
         'iam:UpdateAssumeRolePolicy', 'iam:CreateAccessKey',
         's3:PutBucketPolicy', 's3:PutBucketAcl', 'kms:PutKeyPolicy',
     }
+
+    # Regex patterns for common secrets to catch them even in "safe" fields
+    SECRET_PATTERNS = [
+        re.compile(r'(?i)key-[a-zA-Z0-9]{20,}'), # Generic key-like string
+        re.compile(r'(?i)secret[_-]?key[:=]\s*[^\s]{10,}'),
+        re.compile(r'(?i)password[:=]\s*[^\s]{8,}'),
+        re.compile(r'AKIA[0-9A-Z]{16}'), # AWS Access Key
+        re.compile(r'[a-zA-Z0-9+/]{40}'), # AWS Secret Key (approx)
+        re.compile(r'sk_live_[0-9a-zA-Z]{24}'), # Stripe Secret Key
+    ]
     
     def __init__(self):
         self._arn_hash_map: Dict[str, str] = {}  # hash -> original
@@ -143,6 +153,13 @@ class IAMPolicyAnalyzer(BaseAnalyzer):
             hashed = f"acct_{hash_val}"
             self._arn_hash_map[hashed] = account_id
             text = text.replace(account_id, hashed)
+        
+        # Scan for secrets
+        if len(text) >= 8:
+            for pattern in self.SECRET_PATTERNS:
+                if pattern.search(text):
+                    logger.warning(f"SECRET DETECTED in IAM policy. Redacting.")
+                    return "[SECRET-DETECTED]"
         
         return text
     

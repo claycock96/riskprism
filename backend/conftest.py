@@ -1,20 +1,33 @@
+import os
+# Set test environment defaults BEFORE importing app
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["INTERNAL_ACCESS_CODE"] = "test-secret"
+os.environ["LLM_PROVIDER"] = "mock"
+
 import pytest
 from httpx import AsyncClient
+from app.database import init_db
 from app.main import app
-import os
+
+@pytest.fixture(autouse=True)
+async def setup_db():
+    await init_db()
+    yield
 
 @pytest.fixture
 def anyio_backend():
     return 'asyncio'
 
 @pytest.fixture
-async def client():
+async def client(anyio_backend):
     # Set secure env var for tests
     os.environ["INTERNAL_ACCESS_CODE"] = "test-secret"
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
     # Cleanup
-    del os.environ["INTERNAL_ACCESS_CODE"]
+    if "INTERNAL_ACCESS_CODE" in os.environ:
+        del os.environ["INTERNAL_ACCESS_CODE"]
+
 
 @pytest.fixture
 def auth_headers():

@@ -107,10 +107,10 @@ For developers running Terraform locally, use the included CLI tool for quick an
 ### Installation
 
 ```bash
-# Add to your PATH (one-time setup)
-# Add to your PATH (one-time setup)
-sudo cp scripts/riskprism /usr/local/bin/
-# Or use directly: ./scripts/riskprism
+# Add to your local bin (one-time setup)
+mkdir -p ~/.local/bin
+cp scripts/riskprism ~/.local/bin/
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### Workflow
