@@ -49,6 +49,7 @@ export interface AnalyzeResponse {
   session_id?: string
   cached?: boolean
   analyzer_type?: 'terraform' | 'iam'
+  created_at?: string
 }
 
 export interface SessionStats {

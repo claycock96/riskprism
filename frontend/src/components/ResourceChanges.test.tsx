@@ -61,28 +61,28 @@ describe('ResourceChanges', () => {
         render(<ResourceChanges diffSkeleton={[mockCreateResource]} />)
 
         const badge = screen.getByText('create')
-        expect(badge).toHaveClass('bg-green-100', 'text-green-800')
+        expect(badge).toHaveClass('action-create')
     })
 
     it('renders update action with correct styling', () => {
         render(<ResourceChanges diffSkeleton={[mockUpdateResource]} />)
 
         const badge = screen.getByText('update')
-        expect(badge).toHaveClass('bg-blue-100', 'text-blue-800')
+        expect(badge).toHaveClass('action-update')
     })
 
     it('renders delete action with correct styling', () => {
         render(<ResourceChanges diffSkeleton={[mockDeleteResource]} />)
 
         const badge = screen.getByText('delete')
-        expect(badge).toHaveClass('bg-red-100', 'text-red-800')
+        expect(badge).toHaveClass('action-delete')
     })
 
     it('renders replace action with correct styling', () => {
         render(<ResourceChanges diffSkeleton={[mockReplaceResource]} />)
 
         const badge = screen.getByText('replace')
-        expect(badge).toHaveClass('bg-orange-100', 'text-orange-800')
+        expect(badge).toHaveClass('action-replace')
     })
 
     it('displays resource address name correctly', () => {

@@ -111,37 +111,58 @@ export default function Home() {
 
       {/* Loading State */}
       {loading && (
-        <div className="card">
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-6"></div>
-            <p className="text-lg font-medium text-gray-900 dark:text-white">{getLoadingMessage()}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Running security rules and consulting AI</p>
+        <div className="glass-panel p-12 animate-fade-in">
+          <div className="flex flex-col items-center justify-center">
+            {/* Futuristic spinner */}
+            <div className="relative w-20 h-20 mb-8">
+              {/* Outer ring */}
+              <div className="absolute inset-0 rounded-full border-2 border-violet-500/30 animate-pulse" />
+              {/* Spinning gradient ring */}
+              <div className="absolute inset-1 rounded-full border-2 border-transparent border-t-violet-500 border-r-fuchsia-500 animate-spin" />
+              {/* Inner glow */}
+              <div className="absolute inset-3 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 animate-pulse" />
+              {/* Center icon */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg className="w-8 h-8 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+            </div>
+
+            <p className="text-lg font-semibold text-white mb-2">{getLoadingMessage()}</p>
+            <p className="text-sm text-slate-400">Running security rules and consulting AI</p>
+
+            {/* Progress indicators */}
+            <div className="flex items-center gap-2 mt-6">
+              <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+              <div className="w-2 h-2 rounded-full bg-fuchsia-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
+              <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" style={{ animationDelay: '0.4s' }} />
+            </div>
           </div>
         </div>
       )}
 
       {/* Error State */}
       {error && (
-        <div className="card bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+        <div className="glass-panel p-6 border-red-500/30 animate-fade-in">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
+              <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error</h3>
-              <div className="mt-2 text-sm text-red-700 dark:text-red-400">
-                <p>{error}</p>
-              </div>
-              <div className="mt-4">
-                <button
-                  onClick={handleReset}
-                  className="text-sm font-medium text-red-800 dark:text-red-300 hover:text-red-900 dark:hover:text-red-200"
-                >
-                  Try again →
-                </button>
-              </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-red-300 mb-1">Analysis Failed</h3>
+              <p className="text-sm text-slate-400 mb-4">{error}</p>
+              <button
+                onClick={handleReset}
+                className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Try again
+              </button>
             </div>
           </div>
         </div>

@@ -71,7 +71,7 @@ class ResourceChange(BaseModel):
     action: str = Field(..., description="create/update/delete/replace")
     changed_paths: list[str] = Field(default_factory=list, description="Attribute paths that changed")
     attribute_diffs: list[AttributeDiff] = Field(default_factory=list, description="Detailed attribute changes")
-    resource_ref: str = Field(..., description="Stable hash of resource address")
+    resource_ref: str | None = Field(None, description="Stable hash of resource address")
     resource_address: str | None = Field(
         None, description="Original resource address (for frontend display only, not sent to LLM)"
     )
@@ -108,6 +108,7 @@ class AnalyzeResponse(BaseModel):
     session_id: str | None = Field(None, description="Session ID for sharing/viewing full results")
     cached: bool = Field(default=False, description="Whether this result was served from cache")
     plan_hash: str | None = Field(None, description="Fingerprint of the analyzed plan")
+    created_at: datetime | None = Field(None, description="Timestamp when the analysis was created")
 
 
 # ============================================================================
@@ -187,6 +188,7 @@ class AnalysisSession(Base):
             session_id=self.session_id,
             cached=bool(self.was_cached),
             plan_hash=self.plan_hash,
+            created_at=self.created_at,
         )
 
     @classmethod

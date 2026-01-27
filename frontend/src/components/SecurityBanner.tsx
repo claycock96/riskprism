@@ -5,36 +5,44 @@ interface SecurityBannerProps {
 }
 
 export default function SecurityBanner({ type }: SecurityBannerProps) {
-    const isTerraform = type === 'terraform'
+    const config = {
+        terraform: {
+            title: 'Security-First Design',
+            items: [
+                'Your Terraform plan is analyzed locally first',
+                'Resource names are hashed (SHA-256) before AI processing',
+                'Only metadata and risk patterns reach the AI',
+            ],
+        },
+        iam: {
+            title: 'Privacy-First Analysis',
+            items: [
+                'Your IAM policy is analyzed locally first',
+                'ARNs and Account IDs are hashed before AI processing',
+                'Only permission patterns reach the AI—never raw values',
+            ],
+        },
+    }
+
+    const { title, items } = config[type]
 
     return (
-        <div className="mt-6 rounded-md bg-blue-50 dark:bg-blue-900/20 p-4 border border-blue-200 dark:border-blue-800">
-            <div className="flex">
-                <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        <div className="mt-6 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+            <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
                 </div>
-                <div className="ml-3 flex-1">
-                    <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-1">
-                        {isTerraform ? 'Security-First Design' : 'Privacy-First Analysis'}
-                    </h4>
-                    <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
-                        Your {isTerraform ? 'Terraform plan' : 'IAM policy'} data is processed with security as the top priority.
-                    </p>
-                    <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1 list-disc list-inside">
-                        <li>
-                            <strong>{isTerraform ? 'Resource names' : 'ARNs and Account IDs'} are hashed</strong> before being sent to AI
-                        </li>
-                        <li>
-                            <strong>Only metadata is shared</strong>: {isTerraform ? 'resource types, actions, and attribute paths' : 'actions, resources, and conditions structure'}
-                        </li>
-                        <li>
-                            <strong>Sensitive values are stripped</strong>: {isTerraform ? 'passwords, tokens, keys, secrets' : 'credentials and secrets'} never leave your browser
-                        </li>
-                        <li>
-                            <strong>Frontend shows real names</strong> by mapping hashes back to your original {isTerraform ? 'resource names' : 'identifiers'}
-                        </li>
+                <div>
+                    <h4 className="text-sm font-semibold text-emerald-300 mb-2">{title}</h4>
+                    <ul className="space-y-1">
+                        {items.map((item, idx) => (
+                            <li key={idx} className="flex items-start text-xs text-slate-400">
+                                <span className="w-1 h-1 rounded-full bg-emerald-500 mt-1.5 mr-2 flex-shrink-0" />
+                                {item}
+                            </li>
+                        ))}
                     </ul>
                 </div>
             </div>

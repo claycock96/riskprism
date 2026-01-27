@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 interface EntryGateProps {
     onUnlock: (code: string) => void
@@ -40,20 +40,34 @@ export default function EntryGate({ onUnlock }: EntryGateProps) {
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-95 backdrop-blur-sm p-4">
-            <div className="max-w-md w-full bg-white rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-                <div className="bg-blue-600 px-6 py-8 text-white text-center">
-                    <div className="text-4xl mb-4">🔐</div>
-                    <h2 className="text-2xl font-bold">Team Access Required</h2>
-                    <p className="text-blue-100 mt-2 opacity-90">
-                        Please enter the internal access code to use RiskPrism.
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Background with blur and gradient */}
+            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-xl" />
+
+            {/* Ambient glow effects */}
+            <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-violet-600/20 rounded-full blur-3xl" />
+            <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-fuchsia-600/20 rounded-full blur-3xl" />
+
+            {/* Card */}
+            <div className="relative w-full max-w-md glass-panel overflow-hidden animate-scale-in">
+                {/* Header */}
+                <div className="px-8 py-10 text-center bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 border-b border-white/10">
+                    <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-glow-lg">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white">Team Access Required</h2>
+                    <p className="text-slate-400 mt-2">
+                        Enter the internal access code to use RiskPrism.
                     </p>
                 </div>
 
+                {/* Form */}
                 <form onSubmit={handleSubmit} className="p-8">
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         <div>
-                            <label htmlFor="access-code" className="block text-sm font-medium text-gray-700 mb-2">
+                            <label htmlFor="access-code" className="block text-sm font-medium text-slate-300 mb-2">
                                 Access Code
                             </label>
                             <input
@@ -65,36 +79,42 @@ export default function EntryGate({ onUnlock }: EntryGateProps) {
                                     setCode(e.target.value)
                                     setError(false)
                                 }}
-                                className={`block w-full px-4 py-3 rounded-lg border ${error ? 'border-red-500 ring-red-100' : 'border-gray-300 focus:ring-blue-100 focus:border-blue-500'
-                                    } shadow-sm transition-all focus:ring-4 outline-none`}
+                                className={`input-glass ${error ? 'border-red-500/50 ring-2 ring-red-500/20' : ''}`}
                                 placeholder="••••••••"
                                 autoFocus
                             />
                             {error && (
-                                <p className="mt-2 text-sm text-red-600 flex items-center">
-                                    <span className="mr-1">⚠️</span> Invalid access code. Please try again.
-                                </p>
+                                <div className="mt-3 flex items-center gap-2 text-sm text-red-400 animate-fade-in">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Invalid access code. Please try again.
+                                </div>
                             )}
                         </div>
 
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className={`w-full ${isLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
-                                } text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg active:scale-[0.98] flex items-center justify-center`}
+                            className={`w-full btn-primary py-4 flex items-center justify-center gap-2 ${isLoading ? 'opacity-70 cursor-wait' : ''}`}
                         >
                             {isLoading ? (
                                 <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                    Unlocking...
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    <span className="relative z-10">Unlocking...</span>
                                 </>
                             ) : (
-                                'Unlock Application'
+                                <>
+                                    <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="relative z-10">Unlock Application</span>
+                                </>
                             )}
                         </button>
                     </div>
 
-                    <div className="mt-6 text-center text-xs text-gray-400">
+                    <div className="mt-8 text-center text-xs text-slate-500">
                         Internal Use Only • Unauthorized access is prohibited
                     </div>
                 </form>

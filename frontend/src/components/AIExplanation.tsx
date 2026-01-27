@@ -19,9 +19,6 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
   // Expand all sections when printing
   useEffect(() => {
     const handleBeforePrint = () => {
-      // Store current state
-      const currentSection = expandedSection
-      // Expand all by setting to null (we'll modify the render logic)
       setExpandedSection('print-all')
     }
 
@@ -49,183 +46,178 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
     setExpandedSection(expandedSection === section ? null : section)
   }
 
-  const SectionHeader = ({
-    id,
-    title,
-    icon,
-    badge
-  }: {
-    id: string
-    title: string
-    icon: React.ReactNode
-    badge?: string
-  }) => {
-    const isExpanded = expandedSection === id
-    return (
-      <button
-        onClick={() => toggleSection(id)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors rounded-lg"
-      >
-        <div className="flex items-center">
-          <div className="flex-shrink-0 mr-3">
-            {icon}
-          </div>
-          <div className="flex items-center">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
-            {badge && (
-              <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full">
-                {badge}
-              </span>
-            )}
-          </div>
-        </div>
-        <svg
-          className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+  const sections = [
+    {
+      id: 'summary',
+      title: 'Executive Summary',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-      </button>
-    )
-  }
+      ),
+      gradient: 'from-blue-500 to-cyan-500',
+      content: explanation.executive_summary,
+      type: 'bullets' as const,
+    },
+    {
+      id: 'changes',
+      title: isIAM ? 'Policy Overview' : "What's Changing",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      ),
+      gradient: 'from-emerald-500 to-green-500',
+      content: enhancedChanges,
+      type: 'markdown' as const,
+    },
+    {
+      id: 'checklist',
+      title: 'Review Checklist',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      ),
+      gradient: 'from-purple-500 to-violet-500',
+      content: explanation.review_questions,
+      type: 'checklist' as const,
+    },
+  ]
 
   return (
-    <div className="card space-y-1">
+    <div className="glass-panel p-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center">
-          <svg className="w-6 h-6 text-blue-600 dark:text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-          </svg>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">AI Analysis</h2>
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-glow-md">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-white">AI Analysis</h2>
         </div>
+
+        {/* Data Sanitization Info */}
         <details className="group relative">
-          <summary className="cursor-pointer text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center list-none">
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-300 flex items-center gap-1 list-none">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            How is data sanitized?
+            Data Privacy
           </summary>
-          <div className="hidden group-open:block absolute z-10 right-0 mt-2 w-96 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Data Sanitization Process</h4>
-            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-2">
+          <div className="tooltip-glass absolute z-50 right-0 mt-3 w-80 animate-fade-in">
+            <h4 className="text-sm font-semibold text-white mb-3">Data Sanitization</h4>
+            <div className="space-y-3 text-xs text-slate-400">
               <div>
-                <strong className="text-gray-700 dark:text-gray-300">1. {isIAM ? 'Identity Hashing' : 'Resource Hashing'}</strong>
-                <p className="ml-3 mt-1">
-                  {isIAM
-                    ? <span>Account IDs like <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">123456789012</code> and ARNs are converted to secure hashes like <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">acct_abc123</code>.</span>
-                    : <span>Resource addresses like <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">aws_db_instance.prod-database</code> are converted to hashes.</span>
-                  }
-                </p>
+                <strong className="text-slate-300 block mb-1">1. {isIAM ? 'Identity Hashing' : 'Resource Hashing'}</strong>
+                {isIAM
+                  ? 'Account IDs and ARNs are converted to secure hashes.'
+                  : 'Resource addresses are converted to secure hashes.'}
               </div>
               <div>
-                <strong className="text-gray-700 dark:text-gray-300">2. Metadata Only</strong>
-                <p className="ml-3 mt-1">The AI receives only {isIAM ? 'actions and resource patterns' : 'resource types and attribute paths'}—never raw {isIAM ? 'policy values' : 'configuration values'}.</p>
+                <strong className="text-slate-300 block mb-1">2. Metadata Only</strong>
+                The AI receives only {isIAM ? 'actions and patterns' : 'resource types and paths'}—never raw values.
               </div>
               <div>
-                <strong className="text-gray-700 dark:text-gray-300">3. Frontend Enhancement</strong>
-                <p className="ml-3 mt-1">This interface automatically replaces hashes with your original names for readability, but the AI never sees them.</p>
+                <strong className="text-slate-300 block mb-1">3. Frontend Enhancement</strong>
+                Hashes are replaced with original names for readability here only.
               </div>
             </div>
           </div>
         </details>
       </div>
 
-      {/* Executive Summary - Always visible */}
-      {explanation.executive_summary && explanation.executive_summary.length > 0 && (
-        <div className="mb-2">
-          <SectionHeader
-            id="summary"
-            title="Executive Summary"
-            icon={
-              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            }
-          />
-          {(expandedSection === 'summary' || expandedSection === 'print-all') && (
-            <div className="px-4 pb-4 pt-2">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <ul className="space-y-3">
-                  {explanation.executive_summary.map((item, idx) => (
-                    <li key={idx} className="flex items-start">
-                      <span className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 mt-1.5 mr-3"></span>
-                      <span className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Accordion Sections */}
+      <div className="space-y-2">
+        {sections.map((section) => {
+          if (!section.content || (Array.isArray(section.content) && section.content.length === 0)) {
+            return null
+          }
 
-      {/* What's Changing / Policy Overview */}
-      {enhancedChanges && (
-        <div className="mb-2">
-          <SectionHeader
-            id="changes"
-            title={isIAM ? "Policy Overview" : "What's Changing"}
-            icon={
-              <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            }
-          />
-          {(expandedSection === 'changes' || expandedSection === 'print-all') && (
-            <div className="px-4 pb-4 pt-2">
-              <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                <div className="prose prose-sm max-w-none prose-headings:text-gray-900 dark:prose-headings:text-white prose-headings:font-semibold prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-strong:text-gray-900 dark:prose-strong:text-white prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-li:text-gray-700 dark:prose-li:text-gray-300">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {enhancedChanges}
-                  </ReactMarkdown>
+          const isExpanded = expandedSection === section.id || expandedSection === 'print-all'
+
+          return (
+            <div key={section.id} className="rounded-xl overflow-hidden border border-white/5">
+              {/* Section Header */}
+              <button
+                onClick={() => toggleSection(section.id)}
+                className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${section.gradient} flex items-center justify-center text-white`}>
+                    {section.icon}
+                  </div>
+                  <span className="font-semibold text-white">{section.title}</span>
+                  {section.type === 'checklist' && Array.isArray(section.content) && (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30">
+                      {section.content.length} items
+                    </span>
+                  )}
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+                <svg
+                  className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-      {/* Review Checklist */}
-      {explanation.review_questions && explanation.review_questions.length > 0 && (
-        <div className="mb-2">
-          <SectionHeader
-            id="checklist"
-            title="Review Checklist"
-            icon={
-              <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-            }
-            badge={`${explanation.review_questions.length} items`}
-          />
-          {(expandedSection === 'checklist' || expandedSection === 'print-all') && (
-            <div className="px-4 pb-4 pt-2">
-              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-                <ul className="space-y-3">
-                  {explanation.review_questions.map((question, idx) => (
-                    <li key={idx} className="flex items-start group hover:bg-white dark:hover:bg-gray-800 rounded p-2 transition-colors">
-                      <input
-                        type="checkbox"
-                        id={`question-${idx}`}
-                        className="mt-1 mr-3 h-4 w-4 text-purple-600 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 cursor-pointer"
-                      />
-                      <label
-                        htmlFor={`question-${idx}`}
-                        className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed cursor-pointer"
-                      >
-                        {question}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* Section Content */}
+              {isExpanded && (
+                <div className="px-4 pb-4 animate-fade-in">
+                  {section.type === 'bullets' && Array.isArray(section.content) && (
+                    <div className="p-4 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                      <ul className="space-y-3">
+                        {section.content.map((item, idx) => (
+                          <li key={idx} className="flex items-start">
+                            <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-400 mt-2 mr-3" />
+                            <span className="text-sm text-slate-300 leading-relaxed">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {section.type === 'markdown' && typeof section.content === 'string' && (
+                    <div className="p-4 rounded-lg bg-slate-900/50 border border-white/5">
+                      <div className="prose prose-sm prose-invert max-w-none prose-headings:text-white prose-p:text-slate-300 prose-strong:text-white prose-ul:text-slate-300 prose-li:text-slate-300">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {section.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+
+                  {section.type === 'checklist' && Array.isArray(section.content) && (
+                    <div className="p-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
+                      <ul className="space-y-3">
+                        {section.content.map((question, idx) => (
+                          <li key={idx} className="flex items-start group hover:bg-white/5 rounded-lg p-2 -m-2 transition-colors">
+                            <input
+                              type="checkbox"
+                              id={`question-${idx}`}
+                              className="mt-1 mr-3 h-4 w-4 rounded border-slate-600 bg-slate-800 text-purple-500 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer"
+                            />
+                            <label
+                              htmlFor={`question-${idx}`}
+                              className="text-sm text-slate-300 leading-relaxed cursor-pointer"
+                            >
+                              {question}
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }

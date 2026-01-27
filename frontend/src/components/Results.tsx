@@ -37,39 +37,59 @@ export default function Results({ results, onReset }: ResultsProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header with Reset Button */}
-      <div className="flex items-center justify-between print:hidden">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {isIAM ? 'IAM Policy Analysis' : 'Terraform Plan Analysis'}
-        </h2>
-        <div className="flex gap-3">
+      {/* Header with Actions */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print:hidden">
+        <div>
+          <h2 className="text-2xl font-bold text-white">
+            {isIAM ? 'IAM Policy Analysis' : 'Terraform Plan Analysis'}
+          </h2>
+          <p className="text-sm text-slate-400 mt-1">Security assessment complete</p>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          {/* Save PDF Button */}
           <button
             onClick={handleSavePDF}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center"
+            className="btn-primary flex items-center gap-2"
           >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Save as PDF
+            <span className="relative z-10">Save PDF</span>
           </button>
+
+          {/* Share Button */}
           <button
             onClick={handleShare}
-            className={`px-4 py-2 text-sm font-medium rounded-md border transition-all flex items-center ${copied ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            className={`btn-secondary flex items-center gap-2 ${copied ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' : ''
+              }`}
           >
-            <svg className={`w-4 h-4 mr-2 ${copied ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {copied ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              )}
-            </svg>
-            {copied ? 'Link Copied!' : 'Share Results'}
+            {copied ? (
+              <>
+                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Link Copied!
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share
+              </>
+            )}
           </button>
+
+          {/* Analyze Another Button */}
           <button
             onClick={onReset}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="btn-secondary flex items-center gap-2"
           >
-            {isIAM ? 'Analyze Another Policy' : 'Analyze Another Plan'}
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            {isIAM ? 'New Policy' : 'New Plan'}
           </button>
         </div>
       </div>
@@ -82,7 +102,7 @@ export default function Results({ results, onReset }: ResultsProps) {
         <p className="text-sm text-gray-600">Generated: {new Date().toLocaleString()}</p>
       </div>
 
-      {/* AI Explanation Section - Top level summary */}
+      {/* AI Explanation Section */}
       <AIExplanation
         explanation={results.explanation}
         diffSkeleton={results.diff_skeleton}
@@ -90,7 +110,7 @@ export default function Results({ results, onReset }: ResultsProps) {
         isIAM={isIAM}
       />
 
-      {/* Summary Section - Hide "What's Changing" for IAM */}
+      {/* Summary Section */}
       <Summary
         summary={results.summary}
         riskFindings={results.risk_findings}

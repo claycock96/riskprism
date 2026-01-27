@@ -12,6 +12,7 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
   const [jsonText, setJsonText] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,56 +99,105 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
     }
   }
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const droppedFile = e.dataTransfer.files?.[0]
+    if (droppedFile) {
+      if (droppedFile.size > 10 * 1024 * 1024) {
+        setValidationError('File size exceeds 10MB limit')
+        return
+      }
+      setFile(droppedFile)
+      setMethod('upload')
+      setValidationError(null)
+    }
+  }
+
   const isValid = method === 'paste' ? jsonText.trim().length > 0 : file !== null
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          RiskPrism: Terraform
-        </h2>
+    <div className="glass-panel p-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-glow-sm">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-white">Terraform Plan Analyzer</h2>
+            <p className="text-sm text-slate-400">Upload your plan JSON for AI-powered security analysis</p>
+          </div>
+        </div>
         <button
           type="button"
           onClick={loadExample}
-          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+          className="text-sm font-medium text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
         >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
           Load Example
         </button>
       </div>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Analyze a Terraform plan JSON for security risks and get AI-powered explanations.
-        Generate your plan with: <code className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-xs">terraform show -json tfplan &gt; plan.json</code>
-      </p>
+
+      {/* Command hint */}
+      <div className="mb-6 p-3 rounded-xl bg-violet-500/10 border border-violet-500/20">
+        <p className="text-sm text-slate-300">
+          Generate your plan with:{' '}
+          <code className="px-2 py-1 rounded bg-slate-900 text-violet-300 font-mono text-xs">
+            terraform show -json tfplan &gt; plan.json
+          </code>
+        </p>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Method Selection */}
-        <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700">
+        {/* Method Selection Tabs */}
+        <div className="flex border-b border-white/10">
           <button
             type="button"
             onClick={() => setMethod('paste')}
-            className={`pb-2 px-1 font-medium text-sm border-b-2 transition-colors ${method === 'paste'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            className={`relative pb-3 px-4 font-medium text-sm transition-colors ${method === 'paste'
+              ? 'text-white'
+              : 'text-slate-400 hover:text-slate-200'
               }`}
           >
-            Paste JSON
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              Paste JSON
+            </span>
+            {method === 'paste' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+            )}
           </button>
           <button
             type="button"
             onClick={() => setMethod('upload')}
-            className={`pb-2 px-1 font-medium text-sm border-b-2 transition-colors ${method === 'upload'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            className={`relative pb-3 px-4 font-medium text-sm transition-colors ${method === 'upload'
+              ? 'text-white'
+              : 'text-slate-400 hover:text-slate-200'
               }`}
           >
-            Upload File
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Upload File
+            </span>
+            {method === 'upload' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+            )}
           </button>
         </div>
 
         {/* Input Area */}
         {method === 'paste' ? (
           <div>
-            <label htmlFor="json-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="json-input" className="block text-sm font-medium text-slate-300 mb-2">
               Terraform Plan JSON
             </label>
             <textarea
@@ -155,66 +205,73 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
               rows={12}
               value={jsonText}
               onChange={(e) => setJsonText(e.target.value)}
-              placeholder='Paste your Terraform plan JSON here...'
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+              placeholder='{"format_version": "0.1", "resource_changes": [...]}'
+              className="input-glass font-mono text-sm resize-none"
             />
           </div>
         ) : (
           <div>
-            <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="file-upload" className="block text-sm font-medium text-slate-300 mb-2">
               Select File
             </label>
-            <div className="flex items-center justify-center w-full">
-              <label
-                htmlFor="file-upload"
-                className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <svg
-                    className="w-8 h-8 mb-3 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    />
-                  </svg>
-                  {file ? (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      <span className="font-semibold">{file.name}</span>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              className={`relative flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 ${isDragging
+                ? 'border-violet-500 bg-violet-500/10'
+                : file
+                  ? 'border-emerald-500/50 bg-emerald-500/5'
+                  : 'border-white/20 bg-white/5 hover:border-violet-500/50 hover:bg-violet-500/5'
+                }`}
+            >
+              <input
+                id="file-upload"
+                type="file"
+                accept=".json,application/json"
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <div className="flex flex-col items-center justify-center">
+                {file ? (
+                  <>
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-3">
+                      <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-white font-medium">{file.name}</p>
+                    <p className="text-xs text-slate-400 mt-1">Click or drop to replace</p>
+                  </>
+                ) : (
+                  <>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-colors ${isDragging ? 'bg-violet-500/20' : 'bg-white/10'
+                      }`}>
+                      <svg className={`w-6 h-6 transition-colors ${isDragging ? 'text-violet-400' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-slate-300">
+                      <span className="font-medium text-white">Click to upload</span> or drag and drop
                     </p>
-                  ) : (
-                    <>
-                      <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="font-semibold">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">JSON file (max 10MB)</p>
-                    </>
-                  )}
-                </div>
-                <input
-                  id="file-upload"
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </label>
+                    <p className="text-xs text-slate-500 mt-1">JSON file (max 10MB)</p>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
 
         {/* Validation Error */}
         {validationError && (
-          <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">
-            <div className="flex">
-              <div className="ml-3">
-                <p className="text-sm text-red-800 dark:text-red-300">{validationError}</p>
+          <div className="rounded-xl p-4 bg-red-500/10 border border-red-500/30 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
+              <p className="text-sm text-red-300">{validationError}</p>
             </div>
           </div>
         )}
@@ -223,9 +280,17 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
         <button
           type="submit"
           disabled={!isValid}
-          className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          className={`w-full py-4 rounded-xl font-semibold text-base transition-all duration-300 flex items-center justify-center gap-2 ${isValid
+            ? 'btn-primary'
+            : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+            }`}
         >
-          Analyze Plan
+          <span className="relative z-10 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            Analyze Plan
+          </span>
         </button>
       </form>
 
