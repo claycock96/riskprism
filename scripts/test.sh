@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-# Default behavior: Run Backend tests (Unit + API)
+# Default behavior: Run all tests
 RUN_BACKEND=true
-RUN_FRONTEND=false
+RUN_FRONTEND=true
 RUN_CLI=true
 
 # Parse arguments
