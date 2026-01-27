@@ -305,12 +305,12 @@ riskprism [options] <plan-or-policy-file> [api-url]
 
 2.  **Analyze a JSON plan file**:
     ```bash
-    ./scripts/tf-analyze plan.json
+    ./scripts/riskprism plan.json
     ```
 
 3.  **Point to a remote API**:
     ```bash
-    ./scripts/tf-analyze tfplan http://prod-analyzer:8000
+    ./scripts/riskprism tfplan http://prod-analyzer:8000
     ```
 
 ## Tips
@@ -319,12 +319,12 @@ riskprism [options] <plan-or-policy-file> [api-url]
    ```bash
    alias tf='terraform'
    alias tfa='terraform apply'
-   alias tfp='terraform plan -out=tfplan && ./scripts/tf-analyze tfplan'
+   alias tfp='terraform plan -out=tfplan && ./scripts/riskprism tfplan'
    ```
 
 2. **Use with watch for live feedback**:
    ```bash
-   watch -n 5 'terraform plan -out=tfplan && ./scripts/tf-analyze tfplan'
+   watch -n 5 'terraform plan -out=tfplan && ./scripts/riskprism tfplan'
    ```
 
 3. **Combine with terraform fmt**:

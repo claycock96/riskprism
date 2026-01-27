@@ -30,7 +30,7 @@ We want a web app that:
 - **Multi-Analyzer Architecture**: Modular `BaseAnalyzer` framework supporting pluggable engines.
 - **Terraform Analyzer**: Plan JSON parser with recursive attribute extraction and hashing.
 - **IAM Policy Analyzer**: Normalizes policy statements and hashes ARNs/Account IDs for privacy.
-- **24+ security rules** (14 Terraform, 10+ IAM) in high-concurrency risk engine.
+- **65+ security rules** (Terraform + IAM) in high-concurrency risk engine.
 - **SQLAlchemy + SQLite persistence layer** for session storage and SHA-256 fingerprinting.
 - **Audit Logging (Paper Trail)**: Tracks IP and User-Agent per analysis.
 - **Shared Access Code Authentication** via secure headers.
