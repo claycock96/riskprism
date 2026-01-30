@@ -378,3 +378,134 @@ class TestGenerateExplanation:
                 # Should still return a valid response (mock fallback)
                 assert "explanation" in result
                 assert isinstance(result["explanation"], BedrockExplanation)
+
+
+class TestExampleGeneration:
+    """Tests for LLM example generation."""
+
+    @pytest.mark.anyio
+    async def test_generate_terraform_example_mock_mode(self):
+        """Terraform example generation should work in mock mode."""
+        client = LLMClient(provider="mock")
+
+        result = await client.generate_terraform_example()
+
+        assert "example" in result
+        assert "description" in result
+        assert "generated" in result
+        assert result["generated"] is False  # Mock mode uses static example
+        assert "format_version" in result["example"]
+        assert "resource_changes" in result["example"]
+
+    @pytest.mark.anyio
+    async def test_generate_iam_example_mock_mode(self):
+        """IAM example generation should work in mock mode."""
+        client = LLMClient(provider="mock")
+
+        result = await client.generate_iam_example()
+
+        assert "example" in result
+        assert "description" in result
+        assert "generated" in result
+        assert result["generated"] is False  # Mock mode uses static example
+        assert "Version" in result["example"]
+        assert "Statement" in result["example"]
+
+    @pytest.mark.anyio
+    async def test_generate_terraform_example_llm_success(self):
+        """Terraform example generation should use LLM when available."""
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):  # pragma: allowlist secret
+            client = LLMClient(provider="anthropic")
+            client.anthropic_client = AsyncMock()
+
+            mock_response = MagicMock()
+            mock_response.content = [MagicMock()]
+            mock_response.content[0].text = json.dumps(
+                {"format_version": "0.1", "resource_changes": [{"address": "aws_s3_bucket.test"}]}
+            )
+            client.anthropic_client.messages.create = AsyncMock(return_value=mock_response)
+
+            result = await client.generate_terraform_example()
+
+            assert result["generated"] is True
+            assert "example" in result
+            assert "format_version" in result["example"]
+
+    @pytest.mark.anyio
+    async def test_generate_iam_example_llm_success(self):
+        """IAM example generation should use LLM when available."""
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):  # pragma: allowlist secret
+            client = LLMClient(provider="anthropic")
+            client.anthropic_client = AsyncMock()
+
+            mock_response = MagicMock()
+            mock_response.content = [MagicMock()]
+            mock_response.content[0].text = json.dumps(
+                {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "*", "Resource": "*"}]}
+            )
+            client.anthropic_client.messages.create = AsyncMock(return_value=mock_response)
+
+            result = await client.generate_iam_example()
+
+            assert result["generated"] is True
+            assert "example" in result
+            assert "Version" in result["example"]
+
+    @pytest.mark.anyio
+    async def test_generate_terraform_example_fallback_on_error(self):
+        """Terraform example should fall back to static on LLM error."""
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):  # pragma: allowlist secret
+            client = LLMClient(provider="anthropic")
+            client.anthropic_client = AsyncMock()
+            client.anthropic_client.messages.create.side_effect = Exception("API Error")
+
+            result = await client.generate_terraform_example()
+
+            # Should fall back to static example
+            assert result["generated"] is False
+            assert "example" in result
+            assert "format_version" in result["example"]
+
+    @pytest.mark.anyio
+    async def test_generate_iam_example_fallback_on_error(self):
+        """IAM example should fall back to static on LLM error."""
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):  # pragma: allowlist secret
+            client = LLMClient(provider="anthropic")
+            client.anthropic_client = AsyncMock()
+            client.anthropic_client.messages.create.side_effect = Exception("API Error")
+
+            result = await client.generate_iam_example()
+
+            # Should fall back to static example
+            assert result["generated"] is False
+            assert "example" in result
+            assert "Version" in result["example"]
+
+    def test_static_terraform_example_has_security_issues(self):
+        """Static Terraform example should contain intentional security issues."""
+        client = LLMClient(provider="mock")
+        result = client._get_static_terraform_example()
+
+        example = result["example"]
+        # Should have a security group with 0.0.0.0/0
+        sg_found = False
+        for change in example["resource_changes"]:
+            if change["type"] == "aws_security_group":
+                ingress = change["change"]["after"].get("ingress", [])
+                for rule in ingress:
+                    if "0.0.0.0/0" in rule.get("cidr_blocks", []):
+                        sg_found = True
+        assert sg_found, "Static example should have open security group"
+
+    def test_static_iam_example_has_security_issues(self):
+        """Static IAM example should contain intentional security issues."""
+        client = LLMClient(provider="mock")
+        result = client._get_static_iam_example()
+
+        example = result["example"]
+        # Should have wildcard permissions
+        wildcard_found = False
+        for statement in example["Statement"]:
+            if statement.get("Action") == "*" and statement.get("Resource") == "*":
+                wildcard_found = True
+        assert wildcard_found, "Static example should have wildcard permissions"

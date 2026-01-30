@@ -268,6 +268,49 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
 
 
 # ============================================================================
+# Example Generation Endpoints
+# ============================================================================
+
+
+@app.post("/generate/terraform", dependencies=[Depends(verify_internal_code)])
+@limiter.limit(RATE_LIMIT_ANALYZE)
+async def generate_terraform_example(request: Request):
+    """
+    Generate an example Terraform plan JSON with intentional security issues.
+
+    Uses LLM to generate varied examples, falls back to static example in mock mode.
+    """
+    try:
+        logger.info(f"Generating Terraform example for {request.client.host}")
+        result = await llm_client.generate_terraform_example()
+        logger.info(f"Generated Terraform example (LLM: {result.get('generated', False)})")
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to generate Terraform example: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate example: {str(e)}")
+
+
+@app.post("/generate/iam", dependencies=[Depends(verify_internal_code)])
+@limiter.limit(RATE_LIMIT_ANALYZE)
+async def generate_iam_example(request: Request):
+    """
+    Generate an example IAM policy JSON with intentional security issues.
+
+    Uses LLM to generate varied examples, falls back to static example in mock mode.
+    """
+    try:
+        logger.info(f"Generating IAM example for {request.client.host}")
+        result = await llm_client.generate_iam_example()
+        logger.info(f"Generated IAM example (LLM: {result.get('generated', False)})")
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to generate IAM example: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate example: {str(e)}")
+
+
+# ============================================================================
 # IAM Policy Analysis Endpoint
 # ============================================================================
 

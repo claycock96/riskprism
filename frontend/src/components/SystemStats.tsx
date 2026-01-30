@@ -66,7 +66,7 @@ export default function SystemStats() {
                     </div>
                 </div>
                 <div className="text-xs text-slate-600 flex items-center gap-1">
-                    Built with <span className="text-violet-400">✨</span> by Chris
+                    Built with AI<span className="text-violet-400">✨</span> by Chris
                 </div>
             </div>
         </footer>

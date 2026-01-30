@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import SecurityBanner from './SecurityBanner'
+import { authenticatedFetch } from '../lib/api'
 
 interface UploadFormProps {
   onAnalyze: (planJson: any) => void
@@ -13,6 +14,20 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
   const [file, setFile] = useState<File | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showExampleMenu, setShowExampleMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowExampleMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,7 +54,34 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
     }
   }
 
-  const loadExample = () => {
+  const loadExample = async () => {
+    setIsGenerating(true)
+    setValidationError(null)
+
+    try {
+      const response = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/generate/terraform`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setMethod('paste')
+        setJsonText(JSON.stringify(data.example, null, 2))
+      } else {
+        // Fall back to static example on error
+        loadStaticExample()
+      }
+    } catch (error) {
+      console.error('Failed to generate example:', error)
+      // Fall back to static example
+      loadStaticExample()
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const loadStaticExample = () => {
     const examplePlan = {
       "format_version": "0.1",
       "resource_changes": [
@@ -87,6 +129,7 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
       if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
@@ -131,16 +174,72 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
             <p className="text-sm text-slate-400">Upload your plan JSON for AI-powered security analysis</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={loadExample}
-          className="text-sm font-medium text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          Load Example
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setShowExampleMenu(!showExampleMenu)}
+            disabled={isGenerating}
+            className="text-sm font-medium text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isGenerating ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Generating...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Load Example
+                <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </>
+            )}
+          </button>
+
+          {/* Dropdown Menu */}
+          {showExampleMenu && (
+            <div className="absolute right-0 mt-2 w-64 rounded-xl bg-slate-800 border border-white/10 shadow-xl z-50 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  loadStaticExample()
+                  setShowExampleMenu(false)
+                }}
+                className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/10"
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-sm font-medium text-white">Basic Example</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 ml-6">Static sample • Instant • Free</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  loadExample()
+                  setShowExampleMenu(false)
+                }}
+                className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                  <span className="text-sm font-medium text-white">AI Generated Example</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 ml-6">Unique each time • <span className="text-amber-400">Uses AI credits</span></p>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Command hint */}
