@@ -1,14 +1,30 @@
 'use client'
 
-import { ResourceChange, AttributeDiff } from '@/lib/types'
+import { ResourceChange, AttributeDiff, ResourceCost } from '@/lib/types'
 import { extractResourceName } from '@/lib/resourceMapping'
 
 interface ResourceChangesProps {
     diffSkeleton: ResourceChange[]
+    resourceCosts?: ResourceCost[]
 }
 
-export default function ResourceChanges({ diffSkeleton }: ResourceChangesProps) {
+const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(amount)
+}
+
+export default function ResourceChanges({ diffSkeleton, resourceCosts }: ResourceChangesProps) {
     if (!diffSkeleton || diffSkeleton.length === 0) return null
+
+    // Build cost lookup by resource_ref
+    const costLookup = resourceCosts?.reduce((acc, cost) => {
+        acc[cost.resource_ref] = cost
+        return acc
+    }, {} as Record<string, ResourceCost>) || {}
 
     const getActionStyles = (action: string) => {
         switch (action) {
@@ -80,7 +96,31 @@ export default function ResourceChanges({ diffSkeleton }: ResourceChangesProps) 
                                         {resource.resource_address ? extractResourceName(resource.resource_address) : resource.resource_type}
                                     </span>
                                 </div>
-                                <span className="text-xs text-slate-500 font-mono">{resource.resource_type}</span>
+                                <div className="flex items-center gap-4">
+                                    {/* Cost Display */}
+                                    {costLookup[resource.resource_ref] && (
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-semibold ${resource.action === 'delete' ? 'text-emerald-400' :
+                                                resource.action === 'create' ? 'text-amber-400' :
+                                                    'text-slate-300'
+                                                }`}>
+                                                {resource.action === 'delete' ? '-' : ''}
+                                                {formatCurrency(costLookup[resource.resource_ref].monthly_cost)}
+                                                <span className="text-xs text-slate-500">/mo</span>
+                                            </span>
+                                            <span className={`text-xs px-1.5 py-0.5 rounded ${costLookup[resource.resource_ref].confidence === 'high'
+                                                ? 'bg-emerald-500/20 text-emerald-300'
+                                                : costLookup[resource.resource_ref].confidence === 'medium'
+                                                    ? 'bg-amber-500/20 text-amber-300'
+                                                    : 'bg-slate-500/20 text-slate-400'
+                                                }`}>
+                                                {costLookup[resource.resource_ref].confidence === 'high' ? 'exact' :
+                                                    costLookup[resource.resource_ref].confidence === 'medium' ? 'estimated' : 'unknown'}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <span className="text-xs text-slate-500 font-mono">{resource.resource_type}</span>
+                                </div>
                             </div>
 
                             {/* Diff Table */}

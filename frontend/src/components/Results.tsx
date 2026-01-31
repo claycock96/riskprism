@@ -7,6 +7,7 @@ import RiskFindings from './RiskFindings'
 import AIExplanation from './AIExplanation'
 import PRComment from './PRComment'
 import ResourceChanges from './ResourceChanges'
+import CostEstimate from './CostEstimate'
 
 interface ResultsProps {
   results: AnalyzeResponse
@@ -119,10 +120,16 @@ export default function Results({ results, onReset }: ResultsProps) {
         isIAM={isIAM}
       />
 
+      {/* Cost Estimate Section - Only show for Terraform */}
+      {!isIAM && results.cost_estimate && (
+        <CostEstimate estimate={results.cost_estimate} />
+      )}
+
       {/* Resource Changes Section - Only show for Terraform */}
       {!isIAM && results.diff_skeleton.length > 0 && (
         <ResourceChanges
           diffSkeleton={results.diff_skeleton}
+          resourceCosts={results.cost_estimate?.resource_costs}
         />
       )}
 

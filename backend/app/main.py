@@ -14,6 +14,7 @@ from app.database import init_db
 from app.llm_client import LLMClient
 from app.models import AnalyzeRequest, AnalyzeResponse
 from app.parser import TerraformPlanParser
+from app.pricing import CostEstimator
 from app.risk_engine import RiskEngine
 from app.session_store import session_store
 
@@ -97,6 +98,7 @@ app.add_middleware(
 plan_parser = TerraformPlanParser()
 risk_engine = RiskEngine()
 llm_client = LLMClient()
+cost_estimator = CostEstimator(llm_client=llm_client)
 
 
 @app.get("/auth/validate", dependencies=[Depends(verify_internal_code)])
@@ -230,18 +232,31 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
         logger.info(f"Calling LLM ({llm_client.provider}) for explanation")
         llm_response = await llm_client.generate_explanation(sanitized_payload)
 
-        # Step 8: Build response
+        # Step 8: Estimate costs
+        logger.info("Estimating plan costs")
+        cost_estimate = cost_estimator.estimate_plan_cost(
+            diff_skeleton=diff_skeleton,
+            parsed_plan=parsed_plan,
+            use_llm_fallback=True,
+        )
+        logger.info(
+            f"Cost estimate: ${cost_estimate.total_monthly_cost:.2f}/month "
+            f"({cost_estimate.resources_estimated} estimated, {cost_estimate.resources_unknown} unknown)"
+        )
+
+        # Step 9: Build response
         response = AnalyzeResponse(
             summary=summary,
             diff_skeleton=diff_skeleton,
             risk_findings=risk_findings,
             explanation=llm_response["explanation"],
             pr_comment=llm_response["pr_comment"],
+            cost_estimate=cost_estimate.model_dump(),
             plan_hash=plan_hash,
             cached=False,
         )
 
-        # Step 9: Save to database with audit metadata (unless no_store)
+        # Step 10: Save to database with audit metadata (unless no_store)
         no_store = analyze_request.options.strict_no_store if analyze_request.options else False
 
         if not no_store:

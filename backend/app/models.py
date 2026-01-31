@@ -1,11 +1,16 @@
 import json
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+
+# Import CostEstimate for type annotation (avoid circular import)
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 from sqlalchemy import Boolean, Column, DateTime, String, Text
 from sqlalchemy.orm import DeclarativeBase
+
+if TYPE_CHECKING:
+    pass
 
 
 class AnalysisMode(str, Enum):
@@ -105,6 +110,7 @@ class AnalyzeResponse(BaseModel):
     risk_findings: list[RiskFinding] = Field(..., description="Deterministic risk findings")
     explanation: BedrockExplanation = Field(..., description="Plain-English explanation from Bedrock")
     pr_comment: str = Field(..., description="Copy-paste ready PR comment text")
+    cost_estimate: Any | None = Field(None, description="Cost estimate for the plan (CostEstimate model)")
     session_id: str | None = Field(None, description="Session ID for sharing/viewing full results")
     cached: bool = Field(default=False, description="Whether this result was served from cache")
     plan_hash: str | None = Field(None, description="Fingerprint of the analyzed plan")
@@ -167,6 +173,7 @@ class AnalysisSession(Base):
     risk_findings_json = Column(Text, nullable=False)
     explanation_json = Column(Text, nullable=False)
     pr_comment = Column(Text, nullable=False)
+    cost_estimate_json = Column(Text, nullable=True)  # May be None for older sessions
     was_cached = Column(Boolean, default=False)
 
     # Audit Logging
@@ -176,6 +183,11 @@ class AnalysisSession(Base):
 
     def to_analyze_response(self) -> AnalyzeResponse:
         """Convert ORM model back to Pydantic AnalyzeResponse"""
+        # Parse cost estimate if present
+        cost_estimate = None
+        if self.cost_estimate_json:
+            cost_estimate = json.loads(self.cost_estimate_json)
+
         return AnalyzeResponse(
             summary=PlanSummary(**json.loads(self.summary_json)),
             diff_skeleton=[
@@ -185,6 +197,7 @@ class AnalysisSession(Base):
             risk_findings=[RiskFinding(**f) for f in json.loads(self.risk_findings_json)],
             explanation=BedrockExplanation(**json.loads(self.explanation_json)),
             pr_comment=self.pr_comment,
+            cost_estimate=cost_estimate,
             session_id=self.session_id,
             cached=bool(self.was_cached),
             plan_hash=self.plan_hash,
@@ -201,6 +214,11 @@ class AnalysisSession(Base):
         request_metadata: dict = None,
     ):
         """Create ORM model from Pydantic AnalyzeResponse"""
+        # Serialize cost estimate if present
+        cost_estimate_json = None
+        if response.cost_estimate:
+            cost_estimate_json = json.dumps(response.cost_estimate)
+
         return cls(
             session_id=session_id,
             summary_json=response.summary.model_dump_json(),
@@ -208,6 +226,7 @@ class AnalysisSession(Base):
             risk_findings_json=json.dumps([f.model_dump() for f in response.risk_findings]),
             explanation_json=response.explanation.model_dump_json(),
             pr_comment=response.pr_comment,
+            cost_estimate_json=cost_estimate_json,
             was_cached=response.cached,
             plan_hash=response.plan_hash,
             user_ip=user_ip,
