@@ -117,6 +117,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
       gradient: 'from-red-500 to-rose-600',
       glowColor: 'rgba(239, 68, 68, 0.4)',
       pulse: true,
+      findings: riskFindings.filter(f => f.severity === 'critical'),
     },
     {
       label: 'High',
@@ -124,6 +125,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
       gradient: 'from-orange-500 to-amber-500',
       glowColor: 'rgba(249, 115, 22, 0.3)',
       pulse: false,
+      findings: riskFindings.filter(f => f.severity === 'high'),
     },
     {
       label: 'Medium',
@@ -131,6 +133,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
       gradient: 'from-yellow-500 to-amber-400',
       glowColor: 'rgba(234, 179, 8, 0.3)',
       pulse: false,
+      findings: riskFindings.filter(f => f.severity === 'medium'),
     },
     {
       label: 'Low',
@@ -138,6 +141,7 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
       gradient: 'from-blue-500 to-cyan-500',
       glowColor: 'rgba(59, 130, 246, 0.3)',
       pulse: false,
+      findings: riskFindings.filter(f => f.severity === 'low'),
     },
   ]
 
@@ -263,13 +267,41 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
           {riskStats.map((stat) => (
             <div
               key={stat.label}
-              className={`stat-card ${stat.pulse && stat.value > 0 ? 'animate-pulse' : ''}`}
+              className={`stat-card ${stat.pulse && stat.value > 0 ? 'animate-pulse' : ''} cursor-help relative`}
               style={{ boxShadow: stat.value > 0 ? `0 0 20px -5px ${stat.glowColor}` : undefined }}
+              onMouseEnter={() => stat.value > 0 && setHoveredStat(`risk-${stat.label}`)}
+              onMouseLeave={() => setHoveredStat(null)}
             >
               <div className={`text-3xl font-bold bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent`}>
                 {stat.value}
               </div>
               <div className="text-sm text-slate-400 mt-1">{stat.label}</div>
+
+              {/* Tooltip */}
+              {hoveredStat === `risk-${stat.label}` && stat.findings.length > 0 && (
+                <div className="tooltip-glass absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-80 animate-fade-in">
+                  <div className="font-semibold text-white text-sm mb-2">{stat.label} Severity Findings:</div>
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {stat.findings.slice(0, 10).map((finding, idx) => (
+                      <div key={idx} className="text-xs">
+                        <div className="font-medium text-slate-200">{finding.title}</div>
+                        {finding.resource_type && (
+                          <div className="text-slate-400 font-mono">{finding.resource_type}</div>
+                        )}
+                      </div>
+                    ))}
+                    {stat.findings.length > 10 && (
+                      <div className="text-xs text-slate-500 italic mt-2">
+                        +{stat.findings.length - 10} more
+                      </div>
+                    )}
+                  </div>
+                  {/* Arrow */}
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                    <div className="border-8 border-transparent border-t-slate-900/95" />
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
