@@ -46,6 +46,153 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
     setExpandedSection(expandedSection === section ? null : section)
   }
 
+  // Parse **bold** text and render with styling
+  const renderWithBold = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/)
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const boldText = part.slice(2, -2)
+        return (
+          <span key={idx} className="font-semibold text-white">
+            {boldText}
+          </span>
+        )
+      }
+      return <span key={idx}>{part}</span>
+    })
+  }
+
+  // Parse the changes content into structured cards
+  const parseChangesContent = (content: string) => {
+    const lines = content.split('\n').map(line => line.trim()).filter(line => line)
+    type ParsedSection = {
+      title: string
+      type: 'resources' | 'callout'
+      resources: { name: string; description: string; details: string[] }[]
+      calloutItems?: string[]
+    }
+    const sections: ParsedSection[] = []
+    let currentSection: ParsedSection | null = null
+    let currentResource: { name: string; description: string; details: string[] } | null = null
+
+    // Patterns for callout sections (rendered differently)
+    const calloutPatterns = /^(Key Concerns|Summary|Important|Notes|Recommendations)/i
+
+    for (const line of lines) {
+      // Section headers: "Changes Overview", "Resources Being Created (4)", etc.
+      if (line.match(/^(Changes Overview|Policy Overview|Resources Being (Created|Updated|Deleted|Replaced))/i)) {
+        if (currentSection) sections.push(currentSection)
+        currentSection = { title: line, type: 'resources', resources: [] }
+        currentResource = null
+      }
+      // Callout section headers: "**Key Concerns**", etc.
+      else if (line.match(/^\*\*[^*]+\*\*/) && line.match(calloutPatterns)) {
+        if (currentSection) sections.push(currentSection)
+        const match = line.match(/^\*\*([^*]+)\*\*/)
+        currentSection = {
+          title: match ? match[1] : 'Notes',
+          type: 'callout',
+          resources: [],
+          calloutItems: []
+        }
+        currentResource = null
+      }
+      // Resource type headers: "**Security Group** (1 resource)" or "**Statement 1**: description"
+      else if (line.match(/^\*\*[^*]+\*\*/)) {
+        const match = line.match(/^\*\*([^*]+)\*\*\s*[:.]?\s*(.*)/)
+        if (match) {
+          // Create a default section if we haven't found one yet
+          if (!currentSection) {
+            currentSection = { title: isIAM ? 'Policy Overview' : 'Changes Overview', type: 'resources', resources: [] }
+          }
+          // If this is a callout section, add as callout item instead
+          if (currentSection.type === 'callout') {
+            currentSection.calloutItems?.push(line.replace(/^\*\*([^*]+)\*\*\s*[:.]?\s*/, '$1: '))
+            continue
+          }
+          currentResource = { name: match[1], description: match[2] || '', details: [] }
+          currentSection.resources.push(currentResource)
+        }
+      }
+      // Detail lines starting with - (bullet points)
+      else if (line.startsWith('-') && currentSection?.type === 'callout') {
+        currentSection.calloutItems?.push(line.slice(1).trim())
+      }
+      // Detail lines
+      else if (currentResource) {
+        currentResource.details.push(line)
+      }
+      // Lines in callout section without bullet
+      else if (currentSection?.type === 'callout') {
+        currentSection.calloutItems?.push(line)
+      }
+    }
+    if (currentSection) sections.push(currentSection)
+
+    // Render the parsed structure
+    return sections.map((section, sIdx) => (
+      <div key={sIdx} className={sIdx > 0 ? 'mt-4' : ''}>
+        {/* Section Header */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`text-xs font-semibold uppercase tracking-wider ${
+            section.title.includes('Created') ? 'text-emerald-400' :
+            section.title.includes('Updated') ? 'text-blue-400' :
+            section.title.includes('Deleted') ? 'text-red-400' :
+            section.type === 'callout' ? 'text-amber-400' :
+            'text-slate-400'
+          }`}>
+            {section.title}
+          </span>
+        </div>
+
+        {/* Callout Box */}
+        {section.type === 'callout' && section.calloutItems && (
+          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <ul className="space-y-2">
+              {section.calloutItems.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-sm text-slate-300">
+                  <span className="text-amber-400 mt-0.5">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Resource Cards */}
+        {section.type === 'resources' && (
+          <div className="grid gap-3">
+            {section.resources.map((resource, rIdx) => (
+              <div key={rIdx} className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                <div className="flex items-start gap-2 mb-2">
+                  <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                    section.title.includes('Created') ? 'bg-emerald-500' :
+                    section.title.includes('Updated') ? 'bg-blue-500' :
+                    section.title.includes('Deleted') ? 'bg-red-500' :
+                    'bg-slate-500'
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-white">{resource.name}</span>
+                    {resource.description && (
+                      <p className="text-sm text-slate-400 mt-1">{resource.description}</p>
+                    )}
+                  </div>
+                </div>
+                {resource.details.length > 0 && (
+                  <ul className="space-y-1 pl-4 mt-2 border-l-2 border-slate-700 ml-1">
+                    {resource.details.map((detail, dIdx) => (
+                      <li key={dIdx} className="text-sm text-slate-400 pl-2">{detail}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    ))
+  }
+
   const sections = [
     {
       id: 'summary',
@@ -174,7 +321,7 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
                         {section.content.map((item, idx) => (
                           <li key={idx} className="flex items-start">
                             <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-400 mt-2 mr-3" />
-                            <span className="text-sm text-slate-300 leading-relaxed">{item}</span>
+                            <span className="text-sm text-slate-300 leading-relaxed">{renderWithBold(item)}</span>
                           </li>
                         ))}
                       </ul>
@@ -182,12 +329,21 @@ export default function AIExplanation({ explanation, diffSkeleton = [], riskFind
                   )}
 
                   {section.type === 'markdown' && typeof section.content === 'string' && (
-                    <div className="p-4 rounded-lg bg-slate-900/50 border border-white/5">
-                      <div className="prose prose-sm prose-invert max-w-none prose-headings:text-white prose-p:text-slate-300 prose-strong:text-white prose-ul:text-slate-300 prose-li:text-slate-300">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {section.content}
-                        </ReactMarkdown>
-                      </div>
+                    <div className="space-y-4">
+                      {(() => {
+                        const parsed = parseChangesContent(section.content)
+                        // If parsing found structured content, use it; otherwise fall back to ReactMarkdown
+                        if (parsed.length > 0) {
+                          return parsed
+                        }
+                        return (
+                          <div className="prose prose-invert prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {section.content}
+                            </ReactMarkdown>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )}
 
