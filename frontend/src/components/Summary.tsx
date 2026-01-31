@@ -76,37 +76,49 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
     },
   ]
 
-  // IAM-specific stats
+  // IAM-specific stats - group statements by effect
+  const getStatementsByEffect = (effect: string | null) => {
+    if (!diffSkeleton || diffSkeleton.length === 0) return []
+    if (effect === null) return diffSkeleton // All statements
+    return diffSkeleton.filter(stmt => stmt.action === effect.toLowerCase())
+  }
+
   const iamStats = [
     {
       label: 'Statements',
       value: summary.total_changes,
       gradient: 'from-slate-500 to-slate-600',
+      glowColor: 'rgba(100, 116, 139, 0.3)',
       icon: (
         <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
+      statements: getStatementsByEffect(null),
     },
     {
       label: 'Allow',
       value: summary.creates,
       gradient: 'from-emerald-500 to-green-500',
+      glowColor: 'rgba(16, 185, 129, 0.3)',
       icon: (
         <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
+      statements: getStatementsByEffect('allow'),
     },
     {
       label: 'Deny',
       value: summary.deletes,
       gradient: 'from-red-500 to-rose-500',
+      glowColor: 'rgba(239, 68, 68, 0.3)',
       icon: (
         <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
         </svg>
       ),
+      statements: getStatementsByEffect('deny'),
     },
   ]
 
@@ -190,7 +202,10 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
             {iamStats.map((stat) => (
               <div
                 key={stat.label}
-                className="stat-card group"
+                className="stat-card group cursor-help relative"
+                style={{ boxShadow: stat.value > 0 ? `0 0 20px -5px ${stat.glowColor}` : undefined }}
+                onMouseEnter={() => stat.value > 0 && setHoveredStat(`iam-${stat.label}`)}
+                onMouseLeave={() => setHoveredStat(null)}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{stat.icon}</span>
@@ -201,6 +216,34 @@ export default function Summary({ summary, riskFindings, diffSkeleton = [], cach
                     <div className="text-sm text-slate-400">{stat.label}</div>
                   </div>
                 </div>
+                {/* IAM Statement Tooltip */}
+                {hoveredStat === `iam-${stat.label}` && stat.statements && stat.statements.length > 0 && (
+                  <div className="absolute -top-2 left-0 -translate-y-full z-[100] bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl p-3 min-w-[280px] max-w-[360px]">
+                    <div className="text-xs font-semibold text-slate-300 mb-2">
+                      {stat.label} ({stat.statements.length} statement{stat.statements.length !== 1 ? 's' : ''})
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {stat.statements.slice(0, 5).map((stmt, idx) => (
+                        <div key={idx} className="text-xs bg-slate-900/50 rounded p-2">
+                          <div className="font-medium text-slate-200 mb-1">
+                            {stmt.resource_address || `Statement ${idx + 1}`}
+                          </div>
+                          {stmt.attribute_diffs?.map((diff, diffIdx) => (
+                            <div key={diffIdx} className="text-slate-400 flex">
+                              <span className="text-slate-500 w-20 flex-shrink-0">{diff.path}:</span>
+                              <span className="text-slate-300 truncate">{String(diff.after)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      {stat.statements.length > 5 && (
+                        <div className="text-xs text-slate-500 text-center pt-1">
+                          ... and {stat.statements.length - 5} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -27,6 +27,12 @@ class AnalyzeOptions(BaseModel):
         default=False, description="If True, analysis results are not stored in the session database"
     )
     max_findings: int = Field(default=50, description="Maximum number of risk findings to return")
+    fedramp_moderate: bool = Field(
+        default=False, description="Flag resources/actions that are not FedRAMP Moderate authorized"
+    )
+    fedramp_high: bool = Field(
+        default=False, description="Flag resources/actions that are not FedRAMP High (GovCloud) authorized"
+    )
 
 
 class AnalyzeRequest(BaseModel):

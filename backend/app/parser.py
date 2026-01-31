@@ -47,13 +47,12 @@ class TerraformPlanParser:
         }
 
         # Allowlist of attributes where the VALUE is considered safe to send to LLM/Store
+        # Focus on: boolean flags, numeric values, enum-like configs
+        # Avoid: identifiers, ARNs, names that reveal infrastructure details
         self.safe_attributes = {
+            # === CORE METADATA ===
             "type",
             "action",
-            "id",
-            "name",
-            "resource_type",
-            "resource_address",
             "severity",
             "risk_id",
             "recommendation",
@@ -63,7 +62,8 @@ class TerraformPlanParser:
             "deletes",
             "replaces",
             "terraform_version",
-            # Networking
+            "description",
+            # === NETWORKING / SECURITY GROUPS ===
             "cidr_blocks",
             "ipv6_cidr_blocks",
             "protocol",
@@ -72,8 +72,12 @@ class TerraformPlanParser:
             "egress",
             "ingress",
             "self",
-            "description",  # Description can be risky but often useful
-            # RDS / DB
+            "associate_public_ip_address",
+            "map_public_ip_on_launch",
+            "enable_dns_support",
+            "enable_dns_hostnames",
+            "assign_ipv6_address_on_creation",
+            # === RDS / DATABASES ===
             "engine",
             "engine_version",
             "instance_class",
@@ -81,24 +85,156 @@ class TerraformPlanParser:
             "publicly_accessible",
             "storage_type",
             "allocated_storage",
-            "database_name",
-            # S3
+            "max_allocated_storage",
+            "port",
+            "storage_encrypted",
+            "backup_retention_period",
+            "backup_window",
+            "maintenance_window",
+            "deletion_protection",
+            "skip_final_snapshot",
+            "iam_database_authentication_enabled",
+            "performance_insights_enabled",
+            "auto_minor_version_upgrade",
+            "copy_tags_to_snapshot",
+            "monitoring_interval",
+            "apply_immediately",
+            "allow_major_version_upgrade",
+            # === S3 ===
             "acl",
             "force_destroy",
+            "versioning",
             "versioning_configuration",
             "mfa_delete",
-            # Compute
+            "block_public_acls",
+            "block_public_policy",
+            "ignore_public_acls",
+            "restrict_public_buckets",
+            "sse_algorithm",
+            "object_lock_enabled",
+            # === EC2 / COMPUTE ===
             "ami",
             "instance_type",
-            "key_name",
             "monitoring",
             "ebs_optimized",
             "architecture",
-            "image_id",
             "runtime",
             "handler",
             "memory_size",
             "timeout",
+            "encrypted",
+            "volume_type",
+            "volume_size",
+            "iops",
+            "throughput",
+            "delete_on_termination",
+            "disable_api_termination",
+            "instance_initiated_shutdown_behavior",
+            "http_tokens",  # IMDSv2
+            "http_endpoint",
+            "http_put_response_hop_limit",
+            "tenancy",
+            "hibernation",
+            "credit_specification",
+            # === IAM (structure only, not values) ===
+            "effect",
+            "path",
+            "max_session_duration",
+            "force_detach_policies",
+            "require_lowercase_characters",
+            "require_uppercase_characters",
+            "require_numbers",
+            "require_symbols",
+            "allow_users_to_change_password",
+            "max_password_age",
+            "password_reuse_prevention",
+            "hard_expiry",
+            # === ELB / ALB / NLB ===
+            "internal",
+            "load_balancer_type",
+            "ip_address_type",
+            "enable_deletion_protection",
+            "enable_cross_zone_load_balancing",
+            "enable_http2",
+            "idle_timeout",
+            "drop_invalid_header_fields",
+            "desync_mitigation_mode",
+            "ssl_policy",
+            "target_type",
+            "deregistration_delay",
+            "slow_start",
+            "stickiness",
+            "health_check",
+            "healthy_threshold",
+            "unhealthy_threshold",
+            "health_check_interval",
+            "health_check_timeout",
+            # === LAMBDA ===
+            "reserved_concurrent_executions",
+            "publish",
+            "tracing_mode",
+            # === CLOUDWATCH / LOGGING ===
+            "retention_in_days",
+            "metric_name",
+            "namespace",
+            "period",
+            "statistic",
+            "threshold",
+            "comparison_operator",
+            "evaluation_periods",
+            "treat_missing_data",
+            "datapoints_to_alarm",
+            # === KMS ===
+            "enable_key_rotation",
+            "key_usage",
+            "customer_master_key_spec",
+            "deletion_window_in_days",
+            "is_enabled",
+            "multi_region",
+            # === SECRETS / SSM ===
+            "recovery_window_in_days",
+            "rotation_enabled",
+            "data_type",
+            "tier",
+            # === ECS / EKS ===
+            "launch_type",
+            "network_mode",
+            "requires_compatibilities",
+            "cpu",
+            "memory",
+            "privileged",
+            "readonly_root_filesystem",
+            "enable_execute_command",
+            "endpoint_private_access",
+            "endpoint_public_access",
+            "enabled_cluster_log_types",
+            # === SQS / SNS ===
+            "sqs_managed_sse_enabled",
+            "visibility_timeout_seconds",
+            "message_retention_seconds",
+            "receive_wait_time_seconds",
+            "fifo_queue",
+            "content_based_deduplication",
+            "max_message_size",
+            "delay_seconds",
+            # === DYNAMODB ===
+            "billing_mode",
+            "read_capacity",
+            "write_capacity",
+            "point_in_time_recovery",
+            "ttl",
+            "stream_enabled",
+            "stream_view_type",
+            "table_class",
+            "deletion_protection_enabled",
+            # === GENERIC BOOLEAN/STATE FLAGS ===
+            "enabled",
+            "enable",
+            "disabled",
+            "active",
+            "state",
+            "status",
+            "version",
         }
 
         # Regex patterns for common secrets to catch them even in "safe" fields
@@ -350,16 +486,22 @@ class TerraformPlanParser:
                 return change
         return None
 
-    def calculate_plan_hash(self, diff_skeleton: list[ResourceChange]) -> str:
+    def calculate_plan_hash(
+        self,
+        diff_skeleton: list[ResourceChange],
+        options: dict[str, Any] | None = None,
+    ) -> str:
         """
         Calculate a stable SHA-256 fingerprint for the plan.
 
-        This uses the sanitized diff skeleton (types, actions, and changed paths).
+        This uses the sanitized diff skeleton (types, actions, and changed paths)
+        AND any analysis options that affect the findings (e.g., FedRAMP checks).
         By sorting the skeleton by resource hash, we ensure identical plans
         produce identical fingerprints regardless of internal JSON ordering.
 
         Args:
             diff_skeleton: Minimal representation of plan changes
+            options: Analysis options to include in the hash
 
         Returns:
             SHA-256 hash string
@@ -368,15 +510,21 @@ class TerraformPlanParser:
         sorted_skeleton = sorted(diff_skeleton, key=lambda x: x.resource_ref)
 
         # Serialize only the data that matters for the security vibe
-        hashable_data = [
-            {
-                "type": c.resource_type,
-                "action": c.action,
-                "paths": sorted(c.changed_paths),
-                "diffs": [d.model_dump() for d in sorted(c.attribute_diffs, key=lambda x: x.path)],
-            }
-            for c in sorted_skeleton
-        ]
+        hashable_data = {
+            "skeleton": [
+                {
+                    "type": c.resource_type,
+                    "action": c.action,
+                    "paths": sorted(c.changed_paths),
+                    "diffs": [d.model_dump() for d in sorted(c.attribute_diffs, key=lambda x: x.path)],
+                }
+                for c in sorted_skeleton
+            ],
+            "options": {
+                "fedramp_moderate": options.get("fedramp_moderate", False) if options else False,
+                "fedramp_high": options.get("fedramp_high", False) if options else False,
+            },
+        }
 
         skeleton_json = json.dumps(hashable_data, sort_keys=True)
         return hashlib.sha256(skeleton_json.encode("utf-8")).hexdigest()

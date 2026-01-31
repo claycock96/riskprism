@@ -813,10 +813,73 @@ class IAMPolicyAnalyzer(BaseAnalyzer):
         """Get hash -> original ARN mapping."""
         return self._arn_hash_map
 
-    def calculate_policy_hash(self) -> str:
+    def generate_diff_skeleton(self) -> list[dict[str, Any]]:
+        """
+        Generate statement entries in ResourceChange-compatible format.
+
+        This allows the frontend to display IAM statements in the same
+        tooltip format as Terraform resources.
+        """
+        from app.models import AttributeDiff, ResourceChange
+
+        skeleton = []
+        for idx, stmt in enumerate(self._statements):
+            effect = stmt.get("Effect", "Allow")
+            actions = stmt.get("Action", [])
+            resources = stmt.get("Resource", [])
+            sid = stmt.get("Sid", f"Statement {idx + 1}")
+
+            # Create a readable summary of actions
+            action_summary = actions[:3]
+            if len(actions) > 3:
+                action_summary.append(f"... +{len(actions) - 3} more")
+
+            # Create attribute diffs for tooltip display
+            attribute_diffs = [
+                AttributeDiff(
+                    path="Effect",
+                    before=None,
+                    after=effect,
+                ),
+                AttributeDiff(
+                    path="Actions",
+                    before=None,
+                    after=", ".join(action_summary) if action_summary else "*",
+                ),
+                AttributeDiff(
+                    path="Resources",
+                    before=None,
+                    after="*" if "*" in resources else f"{len(resources)} resource(s)",
+                ),
+            ]
+
+            # Add conditions info if present
+            if stmt.get("Condition"):
+                attribute_diffs.append(
+                    AttributeDiff(
+                        path="Conditions",
+                        before=None,
+                        after="Yes",
+                    )
+                )
+
+            skeleton.append(
+                ResourceChange(
+                    resource_type="iam_statement",
+                    action=effect.lower(),  # "allow" or "deny" maps to action
+                    changed_paths=["Effect", "Actions", "Resources"],
+                    attribute_diffs=attribute_diffs,
+                    resource_ref=f"stmt_{idx}",
+                    resource_address=sid if sid else f"Statement {idx + 1}",
+                )
+            )
+
+        return skeleton
+
+    def calculate_policy_hash(self, options: dict[str, Any] | None = None) -> str:
         """
         Calculate a deterministic hash of the policy for caching.
-        Uses normalized statement structure (actions, resources, effect).
+        Uses normalized statement structure AND analysis options.
         """
         # Create a stable representation of the policy
         policy_repr = []
@@ -834,6 +897,15 @@ class IAMPolicyAnalyzer(BaseAnalyzer):
         # Sort statements for deterministic ordering
         policy_repr.sort(key=lambda x: json.dumps(x, sort_keys=True))
 
+        # Include options in the fingerprint
+        fingerprint_data = {
+            "policy": policy_repr,
+            "options": {
+                "fedramp_moderate": options.get("fedramp_moderate", False) if options else False,
+                "fedramp_high": options.get("fedramp_high", False) if options else False,
+            },
+        }
+
         # Calculate hash
-        policy_str = json.dumps(policy_repr, sort_keys=True)
-        return hashlib.sha256(policy_str.encode("utf-8")).hexdigest()
+        fingerprint_json = json.dumps(fingerprint_data, sort_keys=True)
+        return hashlib.sha256(fingerprint_json.encode("utf-8")).hexdigest()

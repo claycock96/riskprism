@@ -17,7 +17,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleAnalyzeTerraform = async (planJson: any) => {
+  const handleAnalyzeTerraform = async (planJson: any, options?: { fedramp_moderate?: boolean; fedramp_high?: boolean }) => {
     setLoading(true)
     setError(null)
     setResults(null)
@@ -28,7 +28,10 @@ export default function Home() {
       const response = await authenticatedFetch(`${apiUrl}/analyze/terraform`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan_json: planJson }),
+        body: JSON.stringify({
+          plan_json: planJson,
+          options: options || {},
+        }),
       })
 
       if (!response.ok) {
@@ -47,7 +50,7 @@ export default function Home() {
     }
   }
 
-  const handleAnalyzeIAM = async (policy: any) => {
+  const handleAnalyzeIAM = async (policy: any, options?: { fedramp_moderate?: boolean; fedramp_high?: boolean }) => {
     setLoading(true)
     setError(null)
     setResults(null)
@@ -58,7 +61,10 @@ export default function Home() {
       const response = await authenticatedFetch(`${apiUrl}/analyze/iam`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ policy }),
+        body: JSON.stringify({
+          policy,
+          options: options || {},
+        }),
       })
 
       if (!response.ok) {

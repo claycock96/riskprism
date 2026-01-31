@@ -190,11 +190,63 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
             max_findings=analyze_request.options.max_findings if analyze_request.options else 50,
         )
 
+        # Step 3.5: FedRAMP Compliance Checks (if enabled)
+        fedramp_moderate = analyze_request.options.fedramp_moderate if analyze_request.options else False
+        fedramp_high = analyze_request.options.fedramp_high if analyze_request.options else False
+
+        if fedramp_moderate or fedramp_high:
+            from app.compliance.fedramp import (
+                FedRAMPLevel,
+                check_fedramp_compliance,
+                get_service_from_resource_type,
+            )
+            from app.models import RiskFinding, Severity
+
+            logger.info(f"Running FedRAMP compliance checks (moderate={fedramp_moderate}, high={fedramp_high})")
+
+            for resource in diff_skeleton:
+                service = get_service_from_resource_type(resource.resource_type)
+                if not service:
+                    continue
+
+                if fedramp_high:
+                    is_compliant, message = check_fedramp_compliance(service, FedRAMPLevel.HIGH)
+                    if not is_compliant:
+                        risk_findings.append(
+                            RiskFinding(
+                                risk_id="FEDRAMP-NOT-HIGH",
+                                severity=Severity.MEDIUM,
+                                title="Service Not FedRAMP High Authorized",
+                                description=f"The service '{service}' used by this resource is not authorized for FedRAMP High (GovCloud) environments.",
+                                resource_type=resource.resource_type,
+                                resource_ref=resource.resource_ref,
+                                evidence={"service": service, "level": "high"},
+                                recommendation="Use only FedRAMP High authorized services in GovCloud environments, or seek independent agency approval.",
+                            )
+                        )
+
+                if fedramp_moderate:
+                    is_compliant, message = check_fedramp_compliance(service, FedRAMPLevel.MODERATE)
+                    if not is_compliant:
+                        risk_findings.append(
+                            RiskFinding(
+                                risk_id="FEDRAMP-NOT-MODERATE",
+                                severity=Severity.MEDIUM,
+                                title="Service Not FedRAMP Moderate Authorized",
+                                description=f"The service '{service}' used by this resource is not authorized for FedRAMP Moderate environments.",
+                                resource_type=resource.resource_type,
+                                resource_ref=resource.resource_ref,
+                                evidence={"service": service, "level": "moderate"},
+                                recommendation="Use only FedRAMP Moderate authorized services, or seek independent agency approval.",
+                            )
+                        )
+
         # Step 4: Generate summary stats
         summary = plan_parser.generate_summary(parsed_plan)
 
-        # Step 5: Check Cache (Plan Fingerprinting)
-        plan_hash = plan_parser.calculate_plan_hash(diff_skeleton)
+        # Step 4: Calculate plan hash (including options for cache invalidation)
+        plan_options = analyze_request.options.model_dump() if analyze_request.options else {}
+        plan_hash = plan_parser.calculate_plan_hash(diff_skeleton, options=plan_options)
         cached_analysis = await session_store.get_by_plan_hash(plan_hash)
 
         if cached_analysis:
@@ -218,6 +270,7 @@ async def analyze_terraform_plan(request: Request, analyze_request: AnalyzeReque
                 logger.info("strict_no_store: skipping session trace for cache hit")
                 cached_analysis.session_id = None
 
+            cached_analysis.cached = True
             return cached_analysis
 
         # Step 6: Create sanitized payload for LLM
@@ -367,8 +420,9 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
         logger.info("Parsing IAM policy")
         parsed_policy = iam_analyzer.parse(analyze_request.policy)
 
-        # Step 2: Calculate policy hash for caching
-        policy_hash = iam_analyzer.calculate_policy_hash()
+        # Step 2: Calculate policy hash for caching (including options)
+        policy_options = analyze_request.options.model_dump() if analyze_request.options else {}
+        policy_hash = iam_analyzer.calculate_policy_hash(options=policy_options)
         cached_analysis = await session_store.get_by_plan_hash(policy_hash)
 
         if cached_analysis:
@@ -390,12 +444,77 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
                 logger.info("strict_no_store: skipping IAM session trace for cache hit")
                 cached_analysis.session_id = None
 
+            cached_analysis.cached = True
             return cached_analysis
 
         # Step 3: Run IAM security rules
         logger.info("Running IAM risk analysis")
         max_findings = analyze_request.options.max_findings if analyze_request.options else 50
         risk_findings = iam_analyzer.analyze(parsed_policy, max_findings=max_findings)
+
+        # Step 3.5: FedRAMP Compliance Checks for IAM (if enabled)
+        fedramp_moderate = analyze_request.options.fedramp_moderate if analyze_request.options else False
+        fedramp_high = analyze_request.options.fedramp_high if analyze_request.options else False
+
+        if fedramp_moderate or fedramp_high:
+            from app.compliance.fedramp import (
+                FedRAMPLevel,
+                check_fedramp_compliance,
+                get_service_from_action,
+            )
+            from app.models import RiskFinding, Severity
+
+            logger.info(
+                f"Running FedRAMP compliance checks on IAM actions (moderate={fedramp_moderate}, high={fedramp_high})"
+            )
+
+            # Collect all unique services from actions
+            flagged_services: set[str] = set()
+            statements = parsed_policy.get("Statement", [])
+
+            for stmt_idx, stmt in enumerate(statements):
+                actions = stmt.get("Action", [])
+                if isinstance(actions, str):
+                    actions = [actions]
+
+                for action in actions:
+                    service = get_service_from_action(action)
+                    if not service or service in flagged_services:
+                        continue
+
+                    if fedramp_high:
+                        is_compliant, _ = check_fedramp_compliance(service, FedRAMPLevel.HIGH)
+                        if not is_compliant:
+                            flagged_services.add(service)
+                            risk_findings.append(
+                                RiskFinding(
+                                    risk_id="FEDRAMP-NOT-HIGH",
+                                    severity=Severity.MEDIUM,
+                                    title="Service Not FedRAMP High Authorized",
+                                    description=f"Actions for service '{service}' are not authorized for FedRAMP High (GovCloud) environments.",
+                                    resource_type="iam_policy_statement",
+                                    resource_ref=f"stmt_{stmt_idx}",
+                                    evidence={"service": service, "level": "high", "sample_action": action},
+                                    recommendation="Use only FedRAMP High authorized services in GovCloud environments.",
+                                )
+                            )
+
+                    if fedramp_moderate and service not in flagged_services:
+                        is_compliant, _ = check_fedramp_compliance(service, FedRAMPLevel.MODERATE)
+                        if not is_compliant:
+                            flagged_services.add(service)
+                            risk_findings.append(
+                                RiskFinding(
+                                    risk_id="FEDRAMP-NOT-MODERATE",
+                                    severity=Severity.MEDIUM,
+                                    title="Service Not FedRAMP Moderate Authorized",
+                                    description=f"Actions for service '{service}' are not authorized for FedRAMP Moderate environments.",
+                                    resource_type="iam_policy_statement",
+                                    resource_ref=f"stmt_{stmt_idx}",
+                                    evidence={"service": service, "level": "moderate", "sample_action": action},
+                                    recommendation="Use only FedRAMP Moderate authorized services.",
+                                )
+                            )
 
         # Step 4: Generate summary (IAM format)
         summary_dict = iam_analyzer.generate_summary(parsed_policy)
@@ -422,7 +541,7 @@ async def analyze_iam_policy(request: Request, analyze_request: IAMAnalyzeReques
 
         response = AnalyzeResponse(
             summary=adapted_summary,
-            diff_skeleton=[],  # IAM has no resource changes
+            diff_skeleton=iam_analyzer.generate_diff_skeleton(),  # Now populated with statement data
             risk_findings=risk_findings,
             explanation=llm_response["explanation"],
             pr_comment=llm_response["pr_comment"],

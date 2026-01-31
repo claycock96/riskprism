@@ -4,8 +4,13 @@ import { useState, useRef, useEffect } from 'react'
 import SecurityBanner from './SecurityBanner'
 import { authenticatedFetch } from '../lib/api'
 
+interface AnalyzeOptions {
+  fedramp_moderate: boolean
+  fedramp_high: boolean
+}
+
 interface UploadFormProps {
-  onAnalyze: (planJson: any) => void
+  onAnalyze: (planJson: any, options?: AnalyzeOptions) => void
 }
 
 export default function UploadForm({ onAnalyze }: UploadFormProps) {
@@ -16,6 +21,8 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showExampleMenu, setShowExampleMenu] = useState(false)
+  const [fedrampModerate, setFedrampModerate] = useState(false)
+  const [fedrampHigh, setFedrampHigh] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close menu when clicking outside
@@ -33,10 +40,15 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
     e.preventDefault()
     setValidationError(null)
 
+    const options: AnalyzeOptions = {
+      fedramp_moderate: fedrampModerate,
+      fedramp_high: fedrampHigh,
+    }
+
     if (method === 'paste') {
       try {
         const parsed = JSON.parse(jsonText)
-        onAnalyze(parsed)
+        onAnalyze(parsed, options)
       } catch (err) {
         setValidationError('Invalid JSON format. Please check your input.')
       }
@@ -45,7 +57,7 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
       reader.onload = (event) => {
         try {
           const parsed = JSON.parse(event.target?.result as string)
-          onAnalyze(parsed)
+          onAnalyze(parsed, options)
         } catch (err) {
           setValidationError('Invalid JSON file. Please check your file.')
         }
@@ -360,6 +372,50 @@ export default function UploadForm({ onAnalyze }: UploadFormProps) {
             </div>
           </div>
         )}
+
+        {/* FedRAMP Compliance Options */}
+        <div className="rounded-xl p-4 bg-slate-800/50 border border-white/10">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <span className="text-sm font-medium text-slate-300">FedRAMP Compliance Checking</span>
+          </div>
+          <div className="space-y-3">
+            <label className="flex items-center justify-between cursor-pointer group">
+              <div>
+                <span className="text-sm text-slate-300">FedRAMP Moderate</span>
+                <p className="text-xs text-slate-500">Flag services not authorized for Moderate (East/West)</p>
+              </div>
+              <div
+                onClick={() => setFedrampModerate(!fedrampModerate)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${fedrampModerate ? 'bg-emerald-500' : 'bg-slate-600'
+                  }`}
+              >
+                <div
+                  className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${fedrampModerate ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                />
+              </div>
+            </label>
+            <label className="flex items-center justify-between cursor-pointer group">
+              <div>
+                <span className="text-sm text-slate-300">FedRAMP High</span>
+                <p className="text-xs text-slate-500">Flag services not authorized for High (GovCloud)</p>
+              </div>
+              <div
+                onClick={() => setFedrampHigh(!fedrampHigh)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${fedrampHigh ? 'bg-amber-500' : 'bg-slate-600'
+                  }`}
+              >
+                <div
+                  className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${fedrampHigh ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                />
+              </div>
+            </label>
+          </div>
+        </div>
 
         {/* Validation Error */}
         {validationError && (
